@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Guessing Game</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 0;
+        }
+        p {
+            margin-top: 10px;
+        }
+        #game-container {
+            display: grid;
+            width: 420px;
+            height: 420px;
+            margin-top: 20px;
+            gap: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .square {
+            cursor: pointer;
+            transition: transform 0.1s;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .square:hover {
+            transform: scale(1.05);
+        }
+        #score, #high-score {
+            font-size: 20px;
+            margin-top: 20px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <h1>Color Guessing Game</h1>
+    <p>Find the square with a different shade!</p>
+    <div id="game-container"></div>
+    <div id="score">Score: 0</div>
+    <div id="high-score">High Score: 0</div>
+
+    <script>
+        let score = 0;
+        let highScore = 0;
+        let round = 1;
+        let baseColor = getRandomColor();
+
+        function getRandomColor() {
+            return Math.floor(Math.random() * 360);
+        }
+
+        function createSquares() {
+            const container = document.getElementById('game-container');
+            container.innerHTML = '';
+            const squaresPerSide = round + 1;
+            const totalSquares = squaresPerSide * squaresPerSide;
+            const differentSquare = Math.floor(Math.random() * totalSquares);
+            const colorDifference = Math.max(5, 30 - round * 2);
+
+            container.style.gridTemplateColumns = `repeat(${squaresPerSide}, 1fr)`;
+            container.style.gridTemplateRows = `repeat(${squaresPerSide}, 1fr)`;
+
+            for (let i = 0; i < totalSquares; i++) {
+                const square = document.createElement('div');
+                square.classList.add('square');
+                if (i === differentSquare) {
+                    square.style.backgroundColor = `hsl(${baseColor}, 70%, ${50 + colorDifference/2}%)`;
+                    square.onclick = correctGuess;
+                } else {
+                    square.style.backgroundColor = `hsl(${baseColor}, 70%, 50%)`;
+                    square.onclick = wrongGuess;
+                }
+                container.appendChild(square);
+            }
+        }
+
+        function correctGuess() {
+            score++;
+            round++;
+            baseColor = getRandomColor();
+            updateScore();
+            createSquares();
+        }
+
+        function wrongGuess() {
+            alert(`Game Over! Your final score is ${score}.`);
+            if (score > highScore) {
+                highScore = score;
+                updateHighScore();
+            }
+            score = 0;
+            round = 1;
+            baseColor = getRandomColor();
+            updateScore();
+            createSquares();
+        }
+
+        function updateScore() {
+            document.getElementById('score').textContent = `Score: ${score}`;
+        }
+
+        function updateHighScore() {
+            document.getElementById('high-score').textContent = `High Score: ${highScore}`;
+        }
+
+        updateHighScore();
+        createSquares();
+    </script>
+</body>
+</html>
