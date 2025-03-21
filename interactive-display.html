@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Particle Universe</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            font-family: Arial, sans-serif;
+        }
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 15px;
+            z-index: 2;
+            max-width: 90%;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        #controls:hover {
+            opacity: 1;
+        }
+        
+        #control-indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            z-index: 2;
+            opacity: 0.7;
+            transition: opacity 0.3s ease;
+        }
+        
+        #controls:hover + #control-indicator {
+            opacity: 0;
+        }
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            width: 150px;
+        }
+        .slider-container label {
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        input[type="range"] {
+            width: 100%;
+        }
+        .value-display {
+            font-size: 10px;
+            margin-top: 3px;
+        }
+        #title {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: white;
+            font-size: 24px;
+            z-index: 2;
+            text-shadow: 0 0 10px rgba(0,0,0,0.8);
+        }
+        #preset-buttons {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            z-index: 2;
+        }
+        .preset-button {
+            background-color: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            margin: 0 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .preset-button:hover {
+            background-color: rgba(50,50,50,0.7);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="title">Interactive Particle Universe</div>
+    
+    <div id="preset-buttons">
+        <button class="preset-button" data-preset="cosmos">Cosmic Dance</button>
+        <button class="preset-button" data-preset="ocean">Ocean Depths</button>
+        <button class="preset-button" data-preset="fire">Fire Storm</button>
+        <button class="preset-button" data-preset="garden">Digital Garden</button>
+    </div>
+    
+    <div id="controls">
+        <div class="slider-container">
+            <label for="particleCount">Particle Count</label>
+            <input type="range" id="particleCount" min="50" max="2000" value="500">
+            <div class="value-display" id="particleCount-value">500</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="particleSize">Particle Size</label>
+            <input type="range" id="particleSize" min="1" max="10" step="0.5" value="3">
+            <div class="value-display" id="particleSize-value">3</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="particleSpeed">Movement Speed</label>
+            <input type="range" id="particleSpeed" min="0.1" max="5" step="0.1" value="1">
+            <div class="value-display" id="particleSpeed-value">1</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="speedModifier">Speed Modifier</label>
+            <input type="range" id="speedModifier" min="0" max="2" step="0.1" value="1">
+            <div class="value-display" id="speedModifier-value">1</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="connectionDistance">Connection Distance</label>
+            <input type="range" id="connectionDistance" min="50" max="250" value="100">
+            <div class="value-display" id="connectionDistance-value">100</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="colorHue">Color Hue</label>
+            <input type="range" id="colorHue" min="0" max="360" value="200">
+            <div class="value-display" id="colorHue-value">200</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="colorVariation">Color Variation</label>
+            <input type="range" id="colorVariation" min="0" max="180" value="30">
+            <div class="value-display" id="colorVariation-value">30</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="backgroundAlpha">Background Opacity</label>
+            <input type="range" id="backgroundAlpha" min="0.01" max="0.15" step="0.01" value="0.05">
+            <div class="value-display" id="backgroundAlpha-value">0.05</div>
+        </div>
+        
+        <div class="slider-container">
+            <label for="gravity">Gravity Effect</label>
+            <input type="range" id="gravity" min="0" max="1" step="0.05" value="0">
+            <div class="value-display" id="gravity-value">0</div>
+        </div>
+    </div>
+    
+    <div id="control-indicator">Hover here for controls</div>
+
+    <script>
+        // Setup canvas
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let width, height;
+        
+        // Particle system configuration
+        let config = {
+            particleCount: 500,
+            particleSize: 3,
+            particleSpeed: 1,
+            speedModifier: 1,
+            connectionDistance: 100,
+            colorHue: 200,
+            colorVariation: 30,
+            backgroundAlpha: 0.05,
+            gravity: 0
+        };
+        
+        // Particle storage
+        let particles = [];
+        
+        // Mouse position for interaction
+        let mouse = {
+            x: null,
+            y: null,
+            radius: 150
+        };
+        
+        // Resize handler
+        function resizeCanvas() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+            
+            // Recreate particles when canvas is resized
+            initParticles();
+        }
+        
+        // Initialize particles
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < config.particleCount; i++) {
+                const size = (Math.random() * 2 + 0.5) * config.particleSize;
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                const speedFactor = config.particleSpeed;
+                const dirX = (Math.random() * 2 - 1) * speedFactor;
+                const dirY = (Math.random() * 2 - 1) * speedFactor;
+                const hue = config.colorHue + (Math.random() * config.colorVariation * 2 - config.colorVariation);
+                
+                particles.push({
+                    x, y, size, dirX, dirY, hue
+                });
+            }
+        }
+        
+        // Update particle positions
+        function updateParticles() {
+            // Apply speed modifier to all movement
+            const effectiveSpeed = config.speedModifier;
+            
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                
+                // Apply gravity towards mouse if enabled
+                if (config.gravity > 0 && mouse.x !== null) {
+                    const dx = mouse.x - p.x;
+                    const dy = mouse.y - p.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < mouse.radius) {
+                        const force = (mouse.radius - distance) / mouse.radius * config.gravity;
+                        p.dirX += dx / distance * force * 0.2 * effectiveSpeed;
+                        p.dirY += dy / distance * force * 0.2 * effectiveSpeed;
+                    }
+                }
+                
+                // Update position with speed modifier
+                p.x += p.dirX * effectiveSpeed;
+                p.y += p.dirY * effectiveSpeed;
+                
+                // Boundary collision
+                if (p.x < 0 || p.x > width) p.dirX *= -1;
+                if (p.y < 0 || p.y > height) p.dirY *= -1;
+            }
+        }
+        
+        // Draw particles and connections
+        function drawParticles() {
+            // Semi-transparent background for trail effect
+            ctx.fillStyle = `rgba(0, 0, 0, ${config.backgroundAlpha})`;
+            ctx.fillRect(0, 0, width, height);
+            
+            // Draw connections first
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < particles.length; i++) {
+                const p1 = particles[i];
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p2 = particles[j];
+                    const dx = p1.x - p2.x;
+                    const dy = p1.y - p2.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < config.connectionDistance) {
+                        // Create gradient opacity based on distance
+                        const opacity = 1 - (distance / config.connectionDistance);
+                        ctx.strokeStyle = `hsla(${p1.hue}, 100%, 50%, ${opacity * 0.5})`;
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(p1.x, p1.y);
+                        ctx.lineTo(p2.x, p2.y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            // Draw particles
+            for (const p of particles) {
+                ctx.fillStyle = `hsl(${p.hue}, 100%, 50%)`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // Animation loop
+        function animate() {
+            updateParticles();
+            drawParticles();
+            requestAnimationFrame(animate);
+        }
+        
+        // Initialize and start animation
+        function init() {
+            resizeCanvas();
+            updateSliderDisplays();
+            animate();
+        }
+        
+        // Update slider display values
+        function updateSliderDisplays() {
+            for (const key in config) {
+                const display = document.getElementById(`${key}-value`);
+                if (display) display.textContent = config[key];
+            }
+        }
+        
+        // Event Listeners
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Mouse interaction
+        window.addEventListener('mousemove', function(e) {
+            mouse.x = e.x;
+            mouse.y = e.y;
+        });
+        
+        window.addEventListener('mouseout', function() {
+            mouse.x = null;
+            mouse.y = null;
+        });
+        
+        // Slider controls
+        document.querySelectorAll('input[type="range"]').forEach(slider => {
+            const param = slider.id;
+            
+            // Initialize slider to config value
+            slider.value = config[param];
+            
+            // Update on change
+            slider.addEventListener('input', function() {
+                const value = parseFloat(this.value);
+                config[param] = value;
+                document.getElementById(`${param}-value`).textContent = value;
+                
+                // Special case for particleCount - reinitialize particles
+                if (param === 'particleCount') {
+                    initParticles();
+                }
+            });
+        });
+        
+        // Preset Buttons
+        const presets = {
+            cosmos: {
+                particleCount: 1000,
+                particleSize: 2,
+                particleSpeed: 0.5,
+                speedModifier: 1,
+                connectionDistance: 150,
+                colorHue: 240,
+                colorVariation: 60,
+                backgroundAlpha: 0.03,
+                gravity: 0.2
+            },
+            ocean: {
+                particleCount: 600,
+                particleSize: 3,
+                particleSpeed: 0.8,
+                speedModifier: 0.7,
+                connectionDistance: 100,
+                colorHue: 180,
+                colorVariation: 20,
+                backgroundAlpha: 0.08,
+                gravity: 0.1
+            },
+            fire: {
+                particleCount: 800,
+                particleSize: 4,
+                particleSpeed: 2,
+                speedModifier: 1.5,
+                connectionDistance: 80,
+                colorHue: 20,
+                colorVariation: 30,
+                backgroundAlpha: 0.05,
+                gravity: 0.4
+            },
+            garden: {
+                particleCount: 400,
+                particleSize: 5,
+                particleSpeed: 0.6,
+                speedModifier: 0.8,
+                connectionDistance: 120,
+                colorHue: 120,
+                colorVariation: 40,
+                backgroundAlpha: 0.04,
+                gravity: 0.05
+            }
+        };
+        
+        document.querySelectorAll('.preset-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const preset = presets[this.dataset.preset];
+                
+                // Apply preset values
+                for (const key in preset) {
+                    config[key] = preset[key];
+                    const slider = document.getElementById(key);
+                    if (slider) slider.value = preset[key];
+                }
+                
+                updateSliderDisplays();
+                initParticles();
+            });
+        });
+        
+        // Start it all
+        init();
+    </script>
+</body>
+</html>
