@@ -33,89 +33,36 @@ function formatDate(date) {
 }
 
 /**
- * Gets file icon based on file extension
- * @param {string} filename - Filename with extension
+ * Gets file icon for HTML files
  * @returns {string} HTML entity or emoji representing the file type
  */
-function getFileIcon(filename) {
-  const ext = path.extname(filename).toLowerCase();
-  
-  const icons = {
-    '.html': '📄',
-    '.htm': '📄',
-    '.css': '🎨',
-    '.js': '📜',
-    '.json': '📦',
-    '.md': '📝',
-    '.markdown': '📝',
-    '.txt': '📄',
-    '.jpg': '🖼️',
-    '.jpeg': '🖼️',
-    '.png': '🖼️',
-    '.gif': '🖼️',
-    '.svg': '🖼️',
-    '.pdf': '📕',
-    '.zip': '📚',
-    '.tar': '📚',
-    '.gz': '📚',
-    '.mp3': '🎵',
-    '.mp4': '🎬',
-    '.mov': '🎬',
-    '.avi': '🎬',
-    '': '📁' // for directories
-  };
-  
-  return icons[ext] || '📎'; // default icon
+function getFileIcon() {
+  return '📄'; // HTML files icon
 }
 
 /**
- * Get a short description based on file type
- * @param {string} filename - Filename with extension
+ * Get a description for HTML files
  * @returns {string} Description of the file
  */
-function getFileDescription(filename) {
-  const ext = path.extname(filename).toLowerCase();
-  
-  const descriptions = {
-    '.html': 'HTML document with web content',
-    '.htm': 'HTML document with web content',
-    '.css': 'Cascading Style Sheet for styling web pages',
-    '.js': 'JavaScript code file',
-    '.json': 'JSON data file',
-    '.md': 'Markdown documentation file',
-    '.markdown': 'Markdown documentation file',
-    '.txt': 'Plain text file',
-    '.jpg': 'JPEG image file',
-    '.jpeg': 'JPEG image file',
-    '.png': 'PNG image file',
-    '.gif': 'GIF animated image',
-    '.svg': 'SVG vector image',
-    '.pdf': 'PDF document',
-    '.zip': 'ZIP compressed archive',
-    '.tar': 'TAR archive file',
-    '.gz': 'Gzipped compressed file',
-    '.mp3': 'MP3 audio file',
-    '.mp4': 'MP4 video file',
-    '.mov': 'QuickTime video file',
-    '.avi': 'AVI video file',
-    '': 'Directory containing multiple files'
-  };
-  
-  return descriptions[ext] || 'File';
+function getFileDescription() {
+  return 'HTML document with web content';
 }
 
 /**
- * Generate HTML index file
+ * Generate HTML index file with only HTML files
  */
 async function generateIndex() {
   try {
     // Get directory contents
     const dirContents = await fs.readdir('.');
     
-    // Get file stats and filter undesired files
+    // Get file stats and filter to only include HTML files
     const filePromises = dirContents
-      .filter(item => !item.startsWith('.') && 
-                     !['node_modules', 'package-lock.json', 'generate-index.js'].includes(item))
+      .filter(item => 
+        !item.startsWith('.') && 
+        !['node_modules', 'package-lock.json', 'generate-index.js'].includes(item) &&
+        (item.toLowerCase().endsWith('.html') || item.toLowerCase().endsWith('.htm'))
+      )
       .map(async (item) => {
         try {
           const stats = await fs.stat(item);
@@ -135,12 +82,7 @@ async function generateIndex() {
     // Resolve all promises
     const files = (await Promise.all(filePromises))
       .filter(file => file !== null) // Remove any failed stats
-      .sort((a, b) => {
-        // Sort directories first, then by name
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
-        return a.name.localeCompare(b.name);
-      });
+      .sort((a, b) => a.name.localeCompare(b.name));
     
     // Start building HTML
     let html = `<!DOCTYPE html>
@@ -148,7 +90,7 @@ async function generateIndex() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doodads and Doohickeys</title>
+    <title>HTML Files Index</title>
     <style>
         :root {
             --primary-color: #4a6fa5;
@@ -293,23 +235,23 @@ async function generateIndex() {
 </head>
 <body>
     <header>
-        <h1>Doodads and Doohickeys</h1>
-        <p>A collection of useful components and tools</p>
+        <h1>HTML Files Index</h1>
+        <p>A collection of HTML documents</p>
     </header>
     
     <div class="container">
         <section class="description">
-            <h2>About This Project</h2>
-            <p>Welcome to the Doodads and Doohickeys project! This is a collection of useful components, tools, and resources for web development and interactive displays. Browse through the available files below to explore the project.</p>
+            <h2>About This Collection</h2>
+            <p>Welcome to the HTML Files Index! This is a collection of HTML documents available in this directory. Browse through the available files below.</p>
         </section>
         
-        <h2>Project Files</h2>
+        <h2>HTML Files</h2>
         <div class="file-list">`;
     
-    // Add file cards
+    // Add file cards for HTML files only
     for (const file of files) {
-      const icon = getFileIcon(file.name);
-      const desc = getFileDescription(file.name);
+      const icon = getFileIcon();
+      const desc = getFileDescription();
       const size = formatFileSize(file.size);
       const date = formatDate(file.lastModified);
       
@@ -318,7 +260,7 @@ async function generateIndex() {
                 <h3>${icon} ${file.name}</h3>
                 <p>${desc}</p>
                 <span class="file-meta">Size: ${size} • Modified: ${date}</span>
-                <a href="${file.path}" class="file-link">View ${file.isDirectory ? 'Directory' : 'File'}</a>
+                <a href="${file.path}" class="file-link">View File</a>
             </div>`;
     }
     
@@ -328,14 +270,14 @@ async function generateIndex() {
     </div>
     
     <footer>
-        <p>&copy; ${new Date().getFullYear()} Doodads and Doohickeys Project</p>
+        <p>&copy; ${new Date().getFullYear()} HTML Files Index</p>
     </footer>
 </body>
 </html>`;
     
     // Write to file
     await fs.writeFile('index.html', html);
-    console.log('Index file successfully generated!');
+    console.log('HTML-only index file successfully generated!');
     
   } catch (error) {
     console.error('Error generating index:', error);
@@ -345,4 +287,3 @@ async function generateIndex() {
 
 // Run the function
 generateIndex();
-
