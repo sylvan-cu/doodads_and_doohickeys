@@ -1,0 +1,332 @@
+        // Add floor plane for reference
+        const planeGeometry = new THREE.PlaneGeometry(200, 200);
+        const planeMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x222222,
+            side: THREE.DoubleSide
+        });
+        const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+        plane.rotation.x = Math.PI / 2;
+        plane.position.y = 0;
+        scene.add(plane);<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive 3D Hexagonal Prisms</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000;
+        }
+        canvas { 
+            display: block; 
+        }
+        .info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        Click and drag to interact with the hexagonal prisms<br>
+        Right-click and drag to orbit | Scroll to zoom | Middle-click and drag to pan
+    </div>
+    
+    <script type="module">
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.157.0/three.module.js';
+        import { OrbitControls } from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.157.0/examples/jsm/controls/OrbitControls.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x111111);
+        
+        // Camera setup
+        const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 90, 120);
+        camera.lookAt(0, 0, 0);
+        
+        // Renderer setup
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        
+        // Add orbit controls
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // Smooth camera movement
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 20;     // Limit how close you can zoom
+        controls.maxDistance = 200;    // Limit how far you can zoom
+        controls.maxPolarAngle = Math.PI / 2; // Prevent going below the ground plane
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(5, 10, 7.5);
+        scene.add(directionalLight);
+
+        // Create hexagonal grid of prisms
+        const hexPrisms = [];
+        const gridSize = 10;
+        const spacing = 3.6;
+
+        // Using axial coordinates for perfect hexagonal tiling
+        const sqrt3 = Math.sqrt(3);
+        
+        for (let q = -gridSize; q <= gridSize; q++) {
+            for (let r = -gridSize; r <= gridSize; r++) {
+                // Skip coordinates that would make the grid too large in one direction
+                if (Math.abs(q + r) > gridSize) continue;
+                
+                // Convert axial coordinates to position
+                const x = spacing * (3/2 * q);
+                const z = spacing * (sqrt3/2 * q + sqrt3 * r);
+                
+                // Create hexagonal prism
+                const hexGeometry = new THREE.CylinderGeometry(2.8, 2.8, 4, 6);
+                const hexMaterial = new THREE.MeshPhongMaterial({ 
+                    color: 0x3498db,
+                    shininess: 100
+                });
+                
+                const hexPrism = new THREE.Mesh(hexGeometry, hexMaterial);
+                hexPrism.position.set(x, 2, z);
+                
+                // Store original properties for animations
+                hexPrism.userData = {
+                    originalHeight: 4,
+                    originalY: 2,
+                    originalColor: new THREE.Color(0x3498db),
+                    targetHeight: 4,
+                    targetColor: new THREE.Color(0x3498db),
+                    isAnimating: false
+                };
+                
+                scene.add(hexPrism);
+                hexPrisms.push(hexPrism);
+            }
+        }
+
+        // Raycaster for mouse interaction
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        
+        // Handle mouse events
+        window.addEventListener('mousedown', onMouseDown);
+        window.addEventListener('mouseup', onMouseUp);
+        window.addEventListener('mousemove', onMouseMove);
+        
+        let isMouseDown = false;
+        
+        function onMouseDown(event) {
+            isMouseDown = true;
+            updateMousePosition(event);
+            handleInteraction();
+        }
+        
+        function onMouseUp() {
+            isMouseDown = false;
+            resetPrisms();
+        }
+        
+        function onMouseMove(event) {
+            if (isMouseDown) {
+                updateMousePosition(event);
+                handleInteraction();
+            }
+        }
+        
+        function updateMousePosition(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+        
+        function handleInteraction() {
+            // Update the picking ray with the camera and mouse position
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Calculate objects intersecting the picking ray
+            const intersects = raycaster.intersectObjects(scene.children);
+            
+            if (intersects.length > 0) {
+                const clickPosition = intersects[0].point;
+                
+                // Animate hexagonal prisms based on distance from click
+                hexPrisms.forEach(prism => {
+                    const distance = new THREE.Vector3().subVectors(clickPosition, prism.position).length();
+                    const maxDistance = 20;
+                    
+                    if (distance < maxDistance) {
+                        // Calculate influence based on distance (closer = more influence)
+                        const influence = 1 - distance / maxDistance;
+                        
+                        // Set target height based on influence
+                        const newHeight = prism.userData.originalHeight + (20 * influence);
+                        prism.userData.targetHeight = newHeight;
+                        
+                        // Set target color based on influence (gradient from blue to purple)
+                        const newColor = new THREE.Color().copy(prism.userData.originalColor).lerp(new THREE.Color(0x9b59b6), influence);
+                        prism.userData.targetColor = newColor;
+                        
+                        // Mark as animating and ensure it's not resetting
+                        prism.userData.isAnimating = true;
+                        prism.userData.isResetting = false;
+                    }
+                });
+            }
+        }
+        
+        function resetPrisms() {
+            // Add delay before resetting prisms
+            setTimeout(() => {
+                hexPrisms.forEach(prism => {
+                    // Gradually reset over time instead of immediately
+                    prism.userData.isResetting = true;
+                    prism.userData.resetStartTime = Date.now();
+                    prism.userData.resetStartHeight = prism.userData.targetHeight;
+                    prism.userData.resetStartColor = prism.userData.targetColor.clone();
+                });
+            }, 800); // Delay of 800ms before starting reset
+        }
+        
+        // Add some subtle ambient movement to prisms
+        function addAmbientMovement() {
+            hexPrisms.forEach(prism => {
+                // Only apply ambient movement if not being interacted with
+                // and not currently resetting
+                if (!isMouseDown && !prism.userData.isAnimating && !prism.userData.isResetting) {
+                    const time = Date.now() * 0.001;
+                    const x = prism.position.x;
+                    const z = prism.position.z;
+                    
+                    // Subtle height pulsing based on position and time
+                    const pulseHeight = prism.userData.originalHeight + 
+                                       Math.sin(time + x * 0.1) * 0.5 + 
+                                       Math.cos(time + z * 0.1) * 0.5;
+                    
+                    prism.userData.targetHeight = pulseHeight;
+                    
+                    // Subtle color pulsing
+                    const hue = (Math.sin(time * 0.2 + x * 0.05 + z * 0.05) * 0.1) + 0.6; // Blue-ish hues
+                    prism.userData.targetColor.setHSL(hue, 0.8, 0.5);
+                }
+            });
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update controls
+            controls.update();
+            
+            // Add subtle ambient movement
+            addAmbientMovement();
+            
+            // Update prism animations
+            hexPrisms.forEach(prism => {
+                // Get current and target values
+                const currentHeight = prism.scale.y * prism.userData.originalHeight;
+                const targetHeight = prism.userData.targetHeight;
+                
+                const currentColor = prism.material.color;
+                const targetColor = prism.userData.targetColor;
+                
+                // Handle reset animation with slow return
+                if (prism.userData.isResetting) {
+                    const resetDuration = 3000; // 3 seconds for full reset
+                    const elapsed = Date.now() - prism.userData.resetStartTime;
+                    const progress = Math.min(elapsed / resetDuration, 1);
+                    
+                    if (progress < 1) {
+                        // Cubic easing for smoother animation
+                        const easeProgress = 1 - Math.pow(1 - progress, 3);
+                        
+                        // Interpolate between reset start and original values
+                        prism.userData.targetHeight = prism.userData.resetStartHeight * (1 - easeProgress) + 
+                                                     prism.userData.originalHeight * easeProgress;
+                        
+                        // Interpolate color
+                        prism.userData.targetColor.copy(prism.userData.resetStartColor).lerp(
+                            prism.userData.originalColor, easeProgress
+                        );
+                    } else {
+                        // Reset complete
+                        prism.userData.targetHeight = prism.userData.originalHeight;
+                        prism.userData.targetColor = prism.userData.originalColor.clone();
+                        prism.userData.isResetting = false;
+                        prism.userData.isAnimating = false;
+                    }
+                }
+                
+                // Interpolate height (using manual lerp for better compatibility)
+                if (Math.abs(currentHeight - targetHeight) > 0.1) {
+                    // Use faster rise (0.2) and slower fall (0.05) rates
+                    const rate = targetHeight > currentHeight ? 0.2 : 0.05;
+                    const newScale = prism.scale.y + (targetHeight / prism.userData.originalHeight - prism.scale.y) * rate;
+                    prism.scale.y = newScale;
+                    
+                    // Adjust Y position to keep bottom of cylinder in place
+                    const heightDiff = (newScale * prism.userData.originalHeight - prism.userData.originalHeight) / 2;
+                    prism.position.y = prism.userData.originalY + heightDiff;
+                }
+                
+                // Interpolate color
+                currentColor.lerp(targetColor, 0.1);
+            });
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Fix for raycasting while using OrbitControls
+        let isOrbiting = false;
+        
+        // Listen for right mouse button or middle mouse button to distinguish between 
+        // orbiting and interacting with pillars
+        window.addEventListener('mousedown', (event) => {
+            if (event.button === 2 || event.button === 1) { // Right or middle mouse button
+                isOrbiting = true;
+            }
+        });
+        
+        window.addEventListener('mouseup', (event) => {
+            if (event.button === 2 || event.button === 1) { // Right or middle mouse button
+                isOrbiting = false;
+            }
+        });
+        
+        // Override original mousedown handler
+        function onMouseDown(event) {
+            if (event.button === 0 && !isOrbiting) { // Only left mouse button and not orbiting
+                isMouseDown = true;
+                updateMousePosition(event);
+                handleInteraction();
+            }
+        }
+        
+        // Prevent context menu on right-click
+        window.addEventListener('contextmenu', (event) => {
+            event.preventDefault();
+        });
+        
+        // Start animation loop
+        animate();
+    </script>
+</body>
+</html>
