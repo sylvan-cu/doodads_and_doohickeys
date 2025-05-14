@@ -37,7 +37,7 @@
             z-index: 1000; 
         }
         #controlsMenuContainer:hover {
-            width: 260px; 
+            width: 280px; /* Increased width for more controls */
             height: auto; 
             opacity: 1;
             background-color: rgba(52, 73, 94, 0.9); 
@@ -119,6 +119,16 @@
             <input type="range" id="bounceSlider" min="0.5" max="5.0" step="0.1">
             <div class="value-display" id="bounceValueDisplay">2.8</div>
         </div>
+        <div class="control-group">
+            <label for="densitySlider">Density (Overlap):</label>
+            <input type="range" id="densitySlider" min="0.2" max="0.8" step="0.01">
+            <div class="value-display" id="densityValueDisplay">0.35</div>
+        </div>
+        <div class="control-group">
+            <label for="amountSlider">Prism Amount:</label>
+            <input type="range" id="amountSlider" min="10" max="500" step="5">
+            <div class="value-display" id="amountValueDisplay">150</div>
+        </div>
     </div>
 
     <script>
@@ -133,6 +143,8 @@
                 morphDuration: 4000, 
                 bounceFactor: 2.8,   
                 paletteTheme: 'blues', 
+                overlapFactor: 0.35, // New setting for density
+                targetPrismCount: 150 // New setting for prism amount
             };
             let updateAllPrismTargetsInterval; 
 
@@ -224,8 +236,8 @@
                     faceTop: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
                 };
                 [prism.faceLeft, prism.faceRight, prism.faceTop].forEach(face => {
-                    face.setAttribute('stroke', 'rgba(0,0,0,0.3)'); // Adjusted stroke
-                    face.setAttribute('stroke-width', '0.6');      // Adjusted stroke
+                    face.setAttribute('stroke', 'rgba(0,0,0,0.3)'); 
+                    face.setAttribute('stroke-width', '0.6');      
                     face.setAttribute('stroke-linejoin', 'round');
                 });
                 prism.updateTargetDimensions = function() {
@@ -274,21 +286,34 @@
             }
 
             function initPrismGrid() {
-                const overlapFactor = 0.35; // USER REQUEST: Density
-                const MAX_PRISMS = 300;    // USER REQUEST: Max prisms
-                
-                const cellLayoutWidth = (maxDim * 2 * cosA) * overlapFactor; 
-                const cellLayoutHeight = (maxDim + maxDim * sinA) * overlapFactor;
+                // Use settings for overlapFactor (density) and targetPrismCount
+                const cellLayoutWidth = (maxDim * 2 * cosA) * settings.overlapFactor; 
+                const cellLayoutHeight = (maxDim + maxDim * sinA) * settings.overlapFactor;
 
-                let cols = Math.max(1, Math.floor(screenWidth / cellLayoutWidth) + 2); 
-                let rows = Math.max(1, Math.floor(screenHeight / cellLayoutHeight) + 2); 
+                // Estimate cols and rows to achieve targetPrismCount, considering screen aspect ratio
+                let cols, rows;
+                if (cellLayoutWidth <= 0 || cellLayoutHeight <= 0) { // Prevent division by zero
+                    cols = 1;
+                    rows = settings.targetPrismCount;
+                } else {
+                    const screenAspectRatio = screenWidth / screenHeight;
+                    // Aim for roughly targetPrismCount prisms
+                    // cols * rows = targetPrismCount
+                    // cols / rows = screenAspectRatio (approximately, for cell layout)
+                    // cols = rows * screenAspectRatio
+                    // rows * rows * screenAspectRatio = targetPrismCount
+                    // rows = sqrt(targetPrismCount / screenAspectRatio)
+                    rows = Math.sqrt(settings.targetPrismCount / screenAspectRatio);
+                    cols = rows * screenAspectRatio;
 
-                if (cols * rows > MAX_PRISMS) {
-                    const ratio = Math.sqrt(MAX_PRISMS / (cols * rows));
-                    cols = Math.max(1, Math.floor(cols * ratio));
-                    rows = Math.max(1, Math.floor(rows * ratio)); 
+                    // Ensure at least 1x1 grid and round to whole numbers
+                    cols = Math.max(1, Math.round(cols));
+                    rows = Math.max(1, Math.round(settings.targetPrismCount / cols)); // Adjust rows based on rounded cols
+                    rows = Math.max(1, rows); // Ensure at least 1 row
                 }
 
+
+                // Clear existing prisms
                 prisms.forEach(p => {
                     if(p.faceLeft.parentNode) p.faceLeft.remove();
                     if(p.faceRight.parentNode) p.faceRight.remove();
@@ -296,22 +321,32 @@
                 });
                 prisms.length = 0; 
 
+                // Calculate total grid dimensions and offset for centering
                 const totalGridWidth = cols * cellLayoutWidth;
                 const totalGridHeight = rows * cellLayoutHeight;
-                const offsetX = (screenWidth - totalGridWidth) / 2; // Center the whole grid
-                const offsetY = (screenHeight - totalGridHeight) / 2; // This will make it overflow if grid is larger
+                const offsetX = (screenWidth - totalGridWidth) / 2; 
+                const offsetY = (screenHeight - totalGridHeight) / 2; 
 
+                // Create and position prisms
                 for (let r = 0; r < rows; r++) {
                     for (let c = 0; c < cols; c++) {
-                        const jitterX = (Math.random() - 0.5) * cellLayoutWidth * 0.5; 
-                        const jitterY = (Math.random() - 0.5) * cellLayoutHeight * 0.5;
-                        // Anchor point 25% into the cell from top-left, grid is offset to allow overflow
-                        const baseX = offsetX + c * cellLayoutWidth + cellLayoutWidth * 0.25 + jitterX; 
-                        const baseY = offsetY + r * cellLayoutHeight + cellLayoutHeight * 0.25 + jitterY; 
+                        if (prisms.length >= settings.targetPrismCount) break; // Stop if we've hit the target
+
+                        const jitterX = (Math.random() - 0.5) * cellLayoutWidth * 0.3; // Reduced jitter for denser packing
+                        const jitterY = (Math.random() - 0.5) * cellLayoutHeight * 0.3;
+                        
+                        const baseX = offsetX + c * cellLayoutWidth + cellLayoutWidth * 0.5 + jitterX; // Center anchor in cell
+                        const baseY = offsetY + r * cellLayoutHeight + cellLayoutHeight * 0.5 + jitterY; // Center anchor in cell
+                        
                         prisms.push(createPrism(baseX, baseY));
                     }
+                    if (prisms.length >= settings.targetPrismCount) break;
                 }
+
+                // Sort for 3D effect (prisms further "back" drawn first)
                 prisms.sort((a,b) => (a.baseY !== b.baseY) ? a.baseY - b.baseY : a.baseX - b.baseX);
+                
+                // Add prism SVG elements to the canvas
                 prisms.forEach(prism => {
                     svgCanvas.appendChild(prism.faceLeft);
                     svgCanvas.appendChild(prism.faceRight);
@@ -328,17 +363,29 @@
                 prisms.forEach(prism => prism.updateTargetDimensions());
             }
             
+            // --- Setup Controls ---
             const paletteSelector = document.getElementById('paletteSelector');
             const speedSlider = document.getElementById('speedSlider');
             const speedValueDisplay = document.getElementById('speedValueDisplay');
             const bounceSlider = document.getElementById('bounceSlider');
             const bounceValueDisplay = document.getElementById('bounceValueDisplay');
+            const densitySlider = document.getElementById('densitySlider');
+            const densityValueDisplay = document.getElementById('densityValueDisplay');
+            const amountSlider = document.getElementById('amountSlider');
+            const amountValueDisplay = document.getElementById('amountValueDisplay');
 
+
+            // Initialize controls with settings values
             paletteSelector.value = settings.paletteTheme;
             speedSlider.value = settings.morphDuration;
             speedValueDisplay.textContent = `${settings.morphDuration} ms`;
             bounceSlider.value = settings.bounceFactor;
             bounceValueDisplay.textContent = settings.bounceFactor.toFixed(1);
+            densitySlider.value = settings.overlapFactor;
+            densityValueDisplay.textContent = settings.overlapFactor.toFixed(2);
+            amountSlider.value = settings.targetPrismCount;
+            amountValueDisplay.textContent = settings.targetPrismCount;
+
 
             paletteSelector.addEventListener('change', (e) => {
                 settings.paletteTheme = e.target.value;
@@ -359,7 +406,18 @@
                 settings.bounceFactor = parseFloat(e.target.value);
                 bounceValueDisplay.textContent = settings.bounceFactor.toFixed(1);
             });
+            densitySlider.addEventListener('input', (e) => {
+                settings.overlapFactor = parseFloat(e.target.value);
+                densityValueDisplay.textContent = settings.overlapFactor.toFixed(2);
+                initPrismGrid(); // Regenerate grid with new density
+            });
+            amountSlider.addEventListener('input', (e) => {
+                settings.targetPrismCount = parseInt(e.target.value, 10);
+                amountValueDisplay.textContent = settings.targetPrismCount;
+                initPrismGrid(); // Regenerate grid with new amount
+            });
             
+            // --- Start Everything ---
             initPrismGrid(); 
             if (prisms.length > 0) { 
                 animatePrisms(); 
