@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid of Morphing Isometric Prisms</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            background-color: #2c3e50; /* Darker, cool background */
+            font-family: 'Inter', sans-serif;
+        }
+        svg#prismCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background-color: transparent; /* SVG background transparent to show body color */
+        }
+        /* Optional: A subtle text for title if needed, positioned absolutely */
+        .title-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ecf0f1;
+            font-size: 1.5em;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            pointer-events: none; /* So it doesn't interfere with potential SVG interactions */
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="title-overlay">Collective Morph</div>
+    <svg id="prismCanvas"></svg>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const svgCanvas = document.getElementById('prismCanvas');
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+
+            const prisms = []; // Array to hold all prism objects
+
+            // --- Global Animation & Isometric Constants ---
+            const angle = Math.PI / 6; // 30 degrees
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+
+            const minDim = 25; // Smaller min dimension for more variation in a grid
+            const maxDim = 90; // Smaller max dimension to fit more prisms
+            const morphDuration = 3000; // ms
+            const updateInterval = 3000; // ms, how often new targets are set
+
+            // --- Easing Function (easeInOutBack) ---
+            function easeInOutBack(t, s = 1.8) { // Slightly adjusted s for grid
+                const s_plus_1 = s + 1;
+                let t_scaled = t * 2;
+                if (t_scaled < 1) {
+                    return (Math.pow(t_scaled, 2) * (s_plus_1 * t_scaled - s)) / 2;
+                } else {
+                    let t_adjusted = t_scaled - 2;
+                    return (Math.pow(t_adjusted, 2) * (s_plus_1 * t_adjusted + s) + 2) / 2;
+                }
+            }
+
+            // --- Utility Functions ---
+            function getRandomDimension() {
+                return Math.random() * (maxDim - minDim) + minDim;
+            }
+
+            function getRandomBluePalette() {
+                const baseHue = 190 + Math.random() * 50; // Hue range: 190 (cyan-blue) to 240 (violet-blue)
+                const baseSaturation = 55 + Math.random() * 30; // Saturation 55-85%
+                
+                const l_top = 60 + Math.random() * 20;    // Lightness for top: 60-80%
+                const l_right = 45 + Math.random() * 15;  // Lightness for right: 45-60%
+                const l_left = 30 + Math.random() * 15;   // Lightness for left: 30-45%
+
+                return {
+                    left: `hsl(${baseHue}, ${baseSaturation}%, ${l_left}%)`,
+                    right: `hsl(${baseHue}, ${baseSaturation}%, ${l_right}%)`,
+                    top: `hsl(${baseHue}, ${baseSaturation}%, ${l_top}%)`,
+                };
+            }
+
+            // --- Prism Object Factory ---
+            function createPrism(baseX, baseY) {
+                const initialW = getRandomDimension();
+                const initialH = getRandomDimension();
+                const initialD = getRandomDimension();
+                const colors = getRandomBluePalette();
+
+                const prism = {
+                    baseX: baseX,
+                    baseY: baseY,
+                    currentW: initialW, currentH: initialH, currentD: initialD,
+                    prevW: initialW, prevH: initialH, prevD: initialD,
+                    targetW: initialW, targetH: initialH, targetD: initialD,
+                    morphStartTime: performance.now() + Math.random() * morphDuration, // Stagger start times
+                    colors: colors,
+
+                    faceLeft: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                    faceRight: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                    faceTop: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                };
+
+                // Setup SVG elements
+                [prism.faceLeft, prism.faceRight, prism.faceTop].forEach(face => {
+                    face.setAttribute('stroke', 'rgba(0,0,0,0.7)'); // Slightly softer black
+                    face.setAttribute('stroke-width', '1');
+                    face.setAttribute('stroke-linejoin', 'round');
+                    svgCanvas.appendChild(face); // Add to main SVG
+                });
+                prism.faceLeft.setAttribute('fill', prism.colors.left);
+                prism.faceRight.setAttribute('fill', prism.colors.right);
+                prism.faceTop.setAttribute('fill', prism.colors.top);
+                
+                // Re-append in specific order for this prism (ensures top is on top)
+                svgCanvas.appendChild(prism.faceLeft);
+                svgCanvas.appendChild(prism.faceRight);
+                svgCanvas.appendChild(prism.faceTop);
+
+
+                prism.updateTargetDimensions = function() {
+                    this.prevW = this.currentW;
+                    this.prevH = this.currentH;
+                    this.prevD = this.currentD;
+                    this.targetW = getRandomDimension();
+                    this.targetH = getRandomDimension();
+                    this.targetD = getRandomDimension();
+                    this.morphStartTime = performance.now();
+                };
+
+                prism.draw = function() {
+                    const now = performance.now();
+                    const elapsed = now - this.morphStartTime;
+                    const progress = Math.min(elapsed / morphDuration, 1.0);
+                    const easedProgress = easeInOutBack(progress);
+
+                    this.currentW = this.prevW + (this.targetW - this.prevW) * easedProgress;
+                    this.currentH = this.prevH + (this.targetH - this.prevH) * easedProgress;
+                    this.currentD = this.prevD + (this.targetD - this.prevD) * easedProgress;
+
+                    // Calculate vertices using this.baseX, this.baseY
+                    const v_fb = { x: this.baseX, y: this.baseY };
+                    const v_rb = { x: this.baseX + this.currentW * cosA, y: this.baseY - this.currentW * sinA };
+                    const v_lb = { x: this.baseX - this.currentD * cosA, y: this.baseY - this.currentD * sinA };
+                    const v_ft = { x: v_fb.x, y: v_fb.y - this.currentH };
+                    const v_rt = { x: v_rb.x, y: v_rb.y - this.currentH };
+                    const v_lt = { x: v_lb.x, y: v_lb.y - this.currentH };
+                    const v_rear_t = { x: v_lt.x + this.currentW * cosA, y: v_lt.y - this.currentW * sinA };
+
+                    this.faceLeft.setAttribute('points',
+                        `${v_lb.x},${v_lb.y} ${v_fb.x},${v_fb.y} ${v_ft.x},${v_ft.y} ${v_lt.x},${v_lt.y}`
+                    );
+                    this.faceRight.setAttribute('points',
+                        `${v_fb.x},${v_fb.y} ${v_rb.x},${v_rb.y} ${v_rt.x},${v_rt.y} ${v_ft.x},${v_ft.y}`
+                    );
+                    this.faceTop.setAttribute('points',
+                        `${v_lt.x},${v_lt.y} ${v_ft.x},${v_ft.y} ${v_rt.x},${v_rt.y} ${v_rear_t.x},${v_rear_t.y}`
+                    );
+                };
+                return prism;
+            }
+
+            // --- Grid Initialization ---
+            function initPrismGrid() {
+                // Estimate cell size based on max dimensions and projection
+                // Max projected width of a prism: (maxDim_W + maxDim_D) * cosA
+                // Max projected height: maxDim_H + (maxDim_W or maxDim_D) * sinA
+                const estimatedCellWidth = (maxDim * 2 * cosA) + 40; // Add some padding
+                const estimatedCellHeight = maxDim + (maxDim * sinA) + 40; // Add some padding
+
+                const cols = Math.floor(screenWidth / estimatedCellWidth);
+                const rows = Math.floor(screenHeight / estimatedCellHeight);
+
+                const actualCellWidth = screenWidth / cols;
+                const actualCellHeight = screenHeight / rows;
+                
+                // Calculate offsets to center the grid if it doesn't perfectly fit
+                // This is implicitly handled by distributing prisms across 100vw/100vh
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        // Calculate baseX, baseY for the front-bottom point of the prism in its cell
+                        // Position it somewhat centered horizontally, and towards bottom vertically in cell
+                        const baseX = c * actualCellWidth + actualCellWidth * 0.5;
+                        const baseY = r * actualCellHeight + actualCellHeight * 0.80; // 80% down the cell
+
+                        prisms.push(createPrism(baseX, baseY));
+                    }
+                }
+            }
+
+            // --- Main Animation Loop ---
+            function animatePrisms() {
+                prisms.forEach(prism => prism.draw());
+                requestAnimationFrame(animatePrisms);
+            }
+
+            // --- Update Targets Interval ---
+            function updateAllPrismTargets() {
+                prisms.forEach(prism => {
+                    // Optional: Add a slight random delay to when each prism decides to change
+                    // For now, they all get new targets at the same interval but their morphStartTime handles staggering
+                    prism.updateTargetDimensions();
+                });
+            }
+            
+            // --- Start Everything ---
+            initPrismGrid();
+            if (prisms.length > 0) { // Only animate if prisms were created
+                animatePrisms();
+                setInterval(updateAllPrismTargets, updateInterval);
+            } else {
+                console.warn("No prisms created. Screen might be too small for current cell/prism size settings.");
+                // Optionally display a message on the SVG
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", "50%");
+                text.setAttribute("y", "50%");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("fill", "#ecf0f1");
+                text.textContent = "Screen too small to display prisms.";
+                svgCanvas.appendChild(text);
+            }
+        });
+    </script>
+</body>
+</html>
