@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grid of Morphing Isometric Prisms - Enhanced</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Prevent scrollbars */
+            background-color: #2c3e50; /* Darker, cool background */
+            font-family: 'Inter', sans-serif;
+        }
+        svg#prismCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            background-color: transparent; /* SVG background transparent to show body color */
+        }
+        .title-overlay {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ecf0f1;
+            font-size: 1.5em;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+            pointer-events: none; 
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="title-overlay">Collective Morph II</div>
+    <svg id="prismCanvas"></svg>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const svgCanvas = document.getElementById('prismCanvas');
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+
+            const prisms = []; 
+
+            // --- Global Animation & Isometric Constants ---
+            const angle = Math.PI / 6; 
+            const cosA = Math.cos(angle);
+            const sinA = Math.sin(angle);
+
+            const minDim = 20; // Min dimension for W, H, D before accentuation
+            const maxDim = 120; // Max dimension for W, H, D before accentuation
+            const morphDuration = 1800; // Faster morphing
+            const updateInterval = 1800; // Update targets at the same rate
+
+            // --- Easing Function (easeInOutBack) ---
+            function easeInOutBack(t, s = 2.8) { // Increased 's' for more jiggle/overshoot
+                const s_plus_1 = s + 1;
+                let t_scaled = t * 2;
+                if (t_scaled < 1) {
+                    return (Math.pow(t_scaled, 2) * (s_plus_1 * t_scaled - s)) / 2;
+                } else {
+                    let t_adjusted = t_scaled - 2;
+                    return (Math.pow(t_adjusted, 2) * (s_plus_1 * t_adjusted + s) + 2) / 2;
+                }
+            }
+
+            // --- Utility Functions ---
+            function getRandomDimensionBase() { // Renamed to avoid conflict if global minDim/maxDim were used directly
+                return Math.random() * (maxDim - minDim) + minDim;
+            }
+
+            function getRandomBluePalette() {
+                const baseHue = 190 + Math.random() * 50; 
+                const baseSaturation = 55 + Math.random() * 30; 
+                
+                const l_top = 60 + Math.random() * 20;    
+                const l_right = 45 + Math.random() * 15;  
+                const l_left = 30 + Math.random() * 15;   
+
+                return {
+                    left: `hsl(${baseHue}, ${baseSaturation}%, ${l_left}%)`,
+                    right: `hsl(${baseHue}, ${baseSaturation}%, ${l_right}%)`,
+                    top: `hsl(${baseHue}, ${baseSaturation}%, ${l_top}%)`,
+                };
+            }
+
+            // --- Prism Object Factory ---
+            function createPrism(baseX, baseY) {
+                const initialW = getRandomDimensionBase();
+                const initialH = getRandomDimensionBase();
+                const initialD = getRandomDimensionBase();
+                
+                const prism = {
+                    baseX: baseX,
+                    baseY: baseY,
+                    currentW: initialW, currentH: initialH, currentD: initialD,
+                    prevW: initialW, prevH: initialH, prevD: initialD,
+                    targetW: initialW, targetH: initialH, targetD: initialD,
+                    morphStartTime: performance.now() + Math.random() * morphDuration, 
+                    colors: getRandomBluePalette(), // Initial colors
+
+                    faceLeft: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                    faceRight: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                    faceTop: document.createElementNS("http://www.w3.org/2000/svg", "polygon"),
+                };
+
+                [prism.faceLeft, prism.faceRight, prism.faceTop].forEach(face => {
+                    face.setAttribute('stroke', 'rgba(0,0,0,0.6)'); // Slightly more subtle stroke
+                    face.setAttribute('stroke-width', '1');
+                    face.setAttribute('stroke-linejoin', 'round');
+                    // SVG elements will be appended to svgCanvas later, after sorting
+                });
+                prism.faceLeft.setAttribute('fill', prism.colors.left);
+                prism.faceRight.setAttribute('fill', prism.colors.right);
+                prism.faceTop.setAttribute('fill', prism.colors.top);
+                
+                prism.updateTargetDimensions = function() {
+                    this.prevW = this.currentW;
+                    this.prevH = this.currentH;
+                    this.prevD = this.currentD;
+
+                    let newW = getRandomDimensionBase();
+                    let newH = getRandomDimensionBase();
+                    let newD = getRandomDimensionBase();
+
+                    const accentDimension = Math.floor(Math.random() * 3); 
+                    const accentFactor = 1.5 + Math.random() * 1.0; // Accent by 1.5x to 2.5x
+
+                    if (accentDimension === 0) newW *= accentFactor;
+                    else if (accentDimension === 1) newH *= accentFactor;
+                    else newD *= accentFactor;
+                    
+                    const overallMaxDimAccent = maxDim * 1.8; // Max for an accentuated dimension
+                    this.targetW = Math.max(minDim, Math.min(newW, overallMaxDimAccent));
+                    this.targetH = Math.max(minDim, Math.min(newH, overallMaxDimAccent));
+                    this.targetD = Math.max(minDim, Math.min(newD, overallMaxDimAccent));
+
+                    // Ensure at least one dimension is reasonably large if all were small
+                    if (this.targetW < maxDim * 0.4 && this.targetH < maxDim * 0.4 && this.targetD < maxDim * 0.4) {
+                        const boostDim = Math.floor(Math.random() * 3);
+                        if (boostDim === 0) this.targetW = Math.min(maxDim, this.targetW + maxDim * 0.5);
+                        else if (boostDim === 1) this.targetH = Math.min(maxDim, this.targetH + maxDim * 0.5);
+                        else this.targetD = Math.min(maxDim, this.targetD + maxDim * 0.5);
+                    }
+
+                    this.morphStartTime = performance.now();
+                    
+                    // Update colors on dimension change for more visual activity
+                    this.colors = getRandomBluePalette();
+                    this.faceLeft.setAttribute('fill', this.colors.left);
+                    this.faceRight.setAttribute('fill', this.colors.right);
+                    this.faceTop.setAttribute('fill', this.colors.top);
+                };
+
+                prism.draw = function() {
+                    const now = performance.now();
+                    const elapsed = now - this.morphStartTime;
+                    const progress = Math.min(elapsed / morphDuration, 1.0);
+                    const easedProgress = easeInOutBack(progress);
+
+                    this.currentW = this.prevW + (this.targetW - this.prevW) * easedProgress;
+                    this.currentH = this.prevH + (this.targetH - this.prevH) * easedProgress;
+                    this.currentD = this.prevD + (this.targetD - this.prevD) * easedProgress;
+
+                    const v_fb = { x: this.baseX, y: this.baseY };
+                    const v_rb = { x: this.baseX + this.currentW * cosA, y: this.baseY - this.currentW * sinA };
+                    const v_lb = { x: this.baseX - this.currentD * cosA, y: this.baseY - this.currentD * sinA };
+                    const v_ft = { x: v_fb.x, y: v_fb.y - this.currentH };
+                    const v_rt = { x: v_rb.x, y: v_rb.y - this.currentH };
+                    const v_lt = { x: v_lb.x, y: v_lb.y - this.currentH };
+                    const v_rear_t = { x: v_lt.x + this.currentW * cosA, y: v_lt.y - this.currentW * sinA };
+
+                    this.faceLeft.setAttribute('points',
+                        `${v_lb.x},${v_lb.y} ${v_fb.x},${v_fb.y} ${v_ft.x},${v_ft.y} ${v_lt.x},${v_lt.y}`
+                    );
+                    this.faceRight.setAttribute('points',
+                        `${v_fb.x},${v_fb.y} ${v_rb.x},${v_rb.y} ${v_rt.x},${v_rt.y} ${v_ft.x},${v_ft.y}`
+                    );
+                    this.faceTop.setAttribute('points',
+                        `${v_lt.x},${v_lt.y} ${v_ft.x},${v_ft.y} ${v_rt.x},${v_rt.y} ${v_rear_t.x},${v_rear_t.y}`
+                    );
+                };
+                return prism;
+            }
+
+            // --- Grid Initialization ---
+            function initPrismGrid() {
+                const overlapFactor = 0.75; 
+                // Calculate cell dimensions based on max potential prism size and overlap factor
+                // These are guides for how many columns/rows to create
+                const estimatedCellWidth = (maxDim * 2 * cosA) * overlapFactor; 
+                const estimatedCellHeight = (maxDim + maxDim * sinA) * overlapFactor;
+
+                let cols = Math.max(1, Math.floor(screenWidth / estimatedCellWidth));
+                let rows = Math.max(1, Math.floor(screenHeight / estimatedCellHeight));
+
+                const MAX_PRISMS = 150; 
+                if (cols * rows > MAX_PRISMS) {
+                    const ratio = Math.sqrt(MAX_PRISMS / (cols * rows));
+                    cols = Math.max(1, Math.floor(cols * ratio));
+                    rows = Math.max(1, Math.floor(rows * ratio));
+                }
+
+                const actualCellWidth = screenWidth / cols;
+                const actualCellHeight = screenHeight / rows;
+
+                // Clear any existing prism SVG elements from canvas and reset array
+                prisms.forEach(p => {
+                    if (p.faceLeft.parentNode) p.faceLeft.remove();
+                    if (p.faceRight.parentNode) p.faceRight.remove();
+                    if (p.faceTop.parentNode) p.faceTop.remove();
+                });
+                prisms.length = 0; 
+
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        const jitterX = (Math.random() - 0.5) * actualCellWidth * 0.5; // Increased jitter range
+                        const jitterY = (Math.random() - 0.5) * actualCellHeight * 0.5;
+
+                        // Position anchor towards the start of the cell, allowing prism to expand into "other" cells
+                        const baseX = c * actualCellWidth + actualCellWidth * 0.20 + jitterX; 
+                        const baseY = r * actualCellHeight + actualCellHeight * 0.70 + jitterY; 
+
+                        prisms.push(createPrism(baseX, baseY));
+                    }
+                }
+
+                prisms.sort((a, b) => {
+                    if (a.baseY !== b.baseY) return a.baseY - b.baseY;
+                    return a.baseX - b.baseX; 
+                });
+
+                // Append prism faces to SVG in the sorted order
+                prisms.forEach(prism => {
+                    // Ensure faces are layered correctly for each prism itself
+                    svgCanvas.appendChild(prism.faceLeft);
+                    svgCanvas.appendChild(prism.faceRight);
+                    svgCanvas.appendChild(prism.faceTop);
+                });
+            }
+
+            // --- Main Animation Loop ---
+            function animatePrisms() {
+                prisms.forEach(prism => prism.draw());
+                requestAnimationFrame(animatePrisms);
+            }
+
+            // --- Update Targets Interval ---
+            function updateAllPrismTargets() {
+                prisms.forEach(prism => {
+                    prism.updateTargetDimensions();
+                });
+            }
+            
+            // --- Start Everything ---
+            initPrismGrid();
+            if (prisms.length > 0) { 
+                animatePrisms();
+                setInterval(updateAllPrismTargets, updateInterval);
+            } else {
+                console.warn("No prisms created. Screen might be too small or MAX_PRISMS too low.");
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", "50%");
+                text.setAttribute("y", "50%");
+                text.setAttribute("text-anchor", "middle");
+                text.setAttribute("fill", "#ecf0f1");
+                text.textContent = "No prisms to display. Adjust settings or screen size.";
+                svgCanvas.appendChild(text);
+            }
+
+            // Optional: Handle window resize to regenerate grid (basic example)
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(() => {
+                    // Update screenWidth/Height and re-initialize
+                    // Note: This will restart the animation from scratch
+                    // screenWidth = window.innerWidth; 
+                    // screenHeight = window.innerHeight;
+                    // initPrismGrid(); // Potentially too disruptive, enable if desired
+                    // For a smoother resize, one might try to reposition existing prisms.
+                    // For now, a full page reload might be simpler if resize is critical.
+                    console.log("Window resized. For optimal layout, consider reloading or implementing dynamic resize handling.");
+                }, 500);
+            });
+        });
+    </script>
+</body>
+</html>
+```
+I've also added a placeholder for window resize handling in the comments. A full dynamic resize that preserves the state of each prism is more complex, so for now, it just logs a message. If frequent resizing is expected, a page reload or a more sophisticated resize handler would be needed.
+
+The `getRandomDimensionBase` function was renamed slightly to avoid any potential confusion with global `minDim`/`maxDim` if they were accessed directly within that scope for other purposes (though they weren't). The jitter range in `initPrismGrid` was also slightly increased for more varied placement.
+
+I believe these changes address your requests for a more dynamic, overlapping, and "jiggly" animati
