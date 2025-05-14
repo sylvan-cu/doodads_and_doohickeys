@@ -228,7 +228,7 @@
 
             // --- Grid Initialization ---
             function initPrismGrid() {
-                const overlapFactor = 0.40; // Reduced for denser packing
+                const overlapFactor = 0.20; // Reduced for denser packing
                 
                 const estimatedCellWidth = (maxDim * 2 * cosA) * overlapFactor; 
                 const estimatedCellHeight = (maxDim + maxDim * sinA) * overlapFactor;
@@ -236,7 +236,7 @@
                 let cols = Math.max(1, Math.floor(screenWidth / estimatedCellWidth));
                 let rows = Math.max(1, Math.floor(screenHeight / estimatedCellHeight));
 
-                const MAX_PRISMS = 150; 
+                const MAX_PRISMS = 170; 
                 if (cols * rows > MAX_PRISMS) {
                     const ratio = Math.sqrt(MAX_PRISMS / (cols * rows));
                     cols = Math.max(1, Math.floor(cols * ratio));
