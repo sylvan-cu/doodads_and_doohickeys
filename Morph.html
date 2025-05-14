@@ -53,7 +53,7 @@
             const updateInterval = 4000; // Update targets at the same rate
 
             // --- Easing Function (easeInOutBack) ---
-            function easeInOutBack(t, s = 2.8) { 
+            function easeInOutBack(t, s = 1.8) { 
                 const s_plus_1 = s + 1;
                 let t_scaled = t * 2;
                 if (t_scaled < 1) {
@@ -236,7 +236,7 @@
                 let cols = Math.max(1, Math.floor(screenWidth / estimatedCellWidth));
                 let rows = Math.max(1, Math.floor(screenHeight / estimatedCellHeight));
 
-                const MAX_PRISMS = 170; 
+                const MAX_PRISMS = 300; 
                 if (cols * rows > MAX_PRISMS) {
                     const ratio = Math.sqrt(MAX_PRISMS / (cols * rows));
                     cols = Math.max(1, Math.floor(cols * ratio));
