@@ -1,175 +1,364 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f4f4;
-    color: #333;
-    line-height: 1.6;
-    margin: 0;
-    padding: 20px;
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Custom scrollbar for a cleaner look (optional) */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        body {
+            font-family: 'Inter', sans-serif; /* Using Inter font as suggested */
+        }
+        /* Style for the inline edit input */
+        .editable-input {
+            border: 1px solid #3b82f6; /* blue-500 */
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            width: calc(100% - 10px); /* Adjust width as needed */
+        }
+        /* Add a subtle animation for project/component addition */
+        .new-item-animation {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Ensure buttons have good touch target size */
+        button, input[type="checkbox"] {
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0.5rem; /* Tailwind p-2 */
+        }
+        .project-header h2, .component-item-name {
+            word-break: break-word; /* Prevent long names from breaking layout */
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-slate-700 text-slate-100 min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-4">
 
-.container {
-    max-width: 800px;
-    margin: auto;
-    background: #fff;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-}
+    <div class="container bg-slate-800 shadow-2xl rounded-xl p-4 sm:p-8 w-full max-w-2xl">
+        <header class="mb-6 sm:mb-8 text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-400">Project Tracker</h1>
+        </header>
 
-h1 {
-    text-align: center;
-    color: #333;
-    margin-bottom: 20px;
-}
+        <section class="mb-6 sm:mb-8">
+            <div class="flex flex-col sm:flex-row gap-3">
+                <input type="text" id="new-project-name" class="flex-grow p-3 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none placeholder-slate-400" placeholder="Enter new project name...">
+                <button id="add-project-btn" class="bg-sky-500 hover:bg-sky-600 text-white font-semibold p-3 rounded-lg shadow-md transition-colors duration-150 ease-in-out flex items-center justify-center">
+                    <i class="fas fa-plus mr-2"></i> Add Project
+                </button>
+            </div>
+        </section>
 
-.input-section {
-    display: flex;
-    margin-bottom: 20px;
-}
+        <section id="projects-container" class="space-y-6">
+            </section>
+         <p id="no-projects-message" class="text-center text-slate-400 mt-8 hidden">No projects yet. Add one to get started!</p>
+    </div>
 
-.input-section input[type="text"] {
-    flex-grow: 1;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 16px;
-}
+    <div id="message-box" class="fixed top-5 right-5 bg-red-500 text-white p-4 rounded-lg shadow-lg hidden transition-opacity duration-300">
+        <p id="message-text"></p>
+    </div>
 
-.input-section button {
-    padding: 10px 15px;
-    background-color: #5cb85c;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    margin-left: 10px;
-    cursor: pointer;
-    font-size: 16px;
-}
 
-.input-section button:hover {
-    background-color: #4cae4c;
-}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const newProjectNameInput = document.getElementById('new-project-name');
+            const addProjectBtn = document.getElementById('add-project-btn');
+            const projectsContainer = document.getElementById('projects-container');
+            const noProjectsMessage = document.getElementById('no-projects-message');
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
 
-.project {
-    background: #f9f9f9;
-    margin-bottom: 20px;
-    padding: 15px;
-    border: 1px solid #eee;
-    border-radius: 4px;
-}
+            let projects = JSON.parse(localStorage.getItem('projectsTrackerApp')) || [];
 
-.project-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
+            // --- Utility Functions ---
+            const showMessage = (message, type = 'error') => {
+                messageText.textContent = message;
+                messageBox.classList.remove('hidden', 'bg-red-500', 'bg-green-500');
+                if (type === 'error') {
+                    messageBox.classList.add('bg-red-500');
+                } else if (type === 'success') {
+                    messageBox.classList.add('bg-green-500');
+                }
+                messageBox.classList.remove('opacity-0');
+                messageBox.classList.add('opacity-100');
+                setTimeout(() => {
+                    messageBox.classList.remove('opacity-100');
+                    messageBox.classList.add('opacity-0');
+                    setTimeout(() => messageBox.classList.add('hidden'), 300);
+                }, 3000);
+            };
 
-.project-header h2 {
-    margin: 0;
-    font-size: 1.5em;
-    flex-grow: 1;
-}
+            const saveProjects = () => {
+                localStorage.setItem('projectsTrackerApp', JSON.stringify(projects));
+            };
 
-.project-header .actions button {
-    margin-left: 5px;
-    padding: 5px 8px;
-    font-size: 0.9em;
-    cursor: pointer;
-}
+            // --- Rendering Functions ---
+            const renderProjects = () => {
+                projectsContainer.innerHTML = ''; // Clear existing projects
+                if (projects.length === 0) {
+                    noProjectsMessage.classList.remove('hidden');
+                } else {
+                    noProjectsMessage.classList.add('hidden');
+                }
 
-.delete-project-btn {
-    background-color: #d9534f;
-    color: white;
-    border: none;
-    border-radius: 3px;
-}
+                projects.forEach((project, projectIndex) => {
+                    const projectDiv = document.createElement('div');
+                    projectDiv.classList.add('project', 'bg-slate-700', 'p-4', 'sm:p-5', 'rounded-xl', 'shadow-xl', 'new-item-animation');
+                    projectDiv.dataset.projectId = project.id; // Use a unique ID for projects
 
-.delete-project-btn:hover {
-    background-color: #c9302c;
-}
+                    projectDiv.innerHTML = `
+                        <div class="project-header flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                            <h2 class="project-name text-xl sm:text-2xl font-semibold text-sky-300 hover:text-sky-200 cursor-pointer mb-2 sm:mb-0" data-project-index="${projectIndex}">${project.name}</h2>
+                            <div class="actions space-x-2">
+                                <button class="delete-project-btn text-red-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-md" data-project-index="${projectIndex}" aria-label="Delete project ${project.name}">
+                                    <i class="fas fa-trash-alt fa-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="component-input-section flex flex-col sm:flex-row gap-2 mb-4">
+                            <input type="text" class="new-component-name flex-grow p-3 bg-slate-600 border border-slate-500 rounded-lg placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" placeholder="Add new component...">
+                            <button class="add-component-btn bg-emerald-500 hover:bg-emerald-600 text-white font-semibold p-3 rounded-lg shadow-md transition-colors duration-150 flex items-center justify-center" data-project-index="${projectIndex}">
+                                <i class="fas fa-plus mr-2"></i> Add Component
+                            </button>
+                        </div>
+                        <ul class="component-list space-y-2">
+                            ${renderComponents(project.components, projectIndex)}
+                        </ul>
+                    `;
+                    projectsContainer.appendChild(projectDiv);
+                });
+                addEventListenersToDynamicElements();
+            };
 
-.component-input-section {
-    display: flex;
-    margin-top: 10px;
-    margin-bottom: 10px;
-}
+            const renderComponents = (components, projectIndex) => {
+                if (!components || components.length === 0) {
+                    return '<li class="text-slate-400 text-sm px-2">No components yet.</li>';
+                }
+                return components.map((component, componentIndex) => `
+                    <li class="component-item flex items-center justify-between p-3 bg-slate-600 hover:bg-slate-500/50 rounded-lg transition-colors duration-150 new-item-animation" data-project-index="${projectIndex}" data-component-index="${componentIndex}" data-component-id="${component.id}">
+                        <div class="flex items-center flex-grow min-w-0 mr-2"> <input type="checkbox" class="component-status h-5 w-5 text-sky-500 bg-slate-500 border-slate-400 rounded focus:ring-sky-400 focus:ring-offset-slate-600 mr-3 flex-shrink-0" ${component.completed ? 'checked' : ''} aria-label="Mark component ${component.name} as ${component.completed ? 'incomplete' : 'complete'}">
+                            <span class="component-item-name text-slate-200 ${component.completed ? 'line-through text-slate-400' : ''} cursor-pointer truncate" title="${component.name}">${component.name}</span>
+                        </div>
+                        <button class="delete-component-btn text-rose-400 hover:text-rose-500 transition-colors duration-150 p-2 rounded-md flex-shrink-0" aria-label="Delete component ${component.name}">
+                            <i class="fas fa-times-circle fa-lg"></i>
+                        </button>
+                    </li>
+                `).join('');
+            };
 
-.component-input-section input[type="text"] {
-    flex-grow: 1;
-    padding: 8px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
+            // --- Event Handlers ---
+            const handleAddProject = () => {
+                const projectName = newProjectNameInput.value.trim();
+                if (projectName) {
+                    projects.push({ id: Date.now().toString(), name: projectName, components: [] });
+                    newProjectNameInput.value = '';
+                    saveAndRender();
+                } else {
+                    showMessage('Please enter a project name.', 'error');
+                }
+            };
 
-.component-input-section button {
-    padding: 8px 12px;
-    background-color: #337ab7;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    margin-left: 8px;
-    cursor: pointer;
-}
+            const handleAddComponent = (projectIndex, componentNameInput) => {
+                const componentName = componentNameInput.value.trim();
+                if (componentName) {
+                    if (projects[projectIndex]) {
+                        projects[projectIndex].components.push({ id: Date.now().toString(), name: componentName, completed: false });
+                        componentNameInput.value = '';
+                        saveAndRender();
+                    } else {
+                         showMessage('Project not found. Please refresh.', 'error');
+                    }
+                } else {
+                    showMessage('Please enter a component name.', 'error');
+                }
+            };
 
-.component-input-section button:hover {
-    background-color: #286090;
-}
+            const handleToggleComponentStatus = (projectIndex, componentIndex) => {
+                if (projects[projectIndex] && projects[projectIndex].components[componentIndex]) {
+                    projects[projectIndex].components[componentIndex].completed = !projects[projectIndex].components[componentIndex].completed;
+                    saveAndRender();
+                }
+            };
 
-.component-list {
-    list-style: none;
-    padding: 0;
-}
+            const handleDeleteProject = (projectIndex) => {
+                if (projects[projectIndex] && confirm(`Are you sure you want to delete the project "${projects[projectIndex].name}"? This will also delete all its components.`)) {
+                    projects.splice(projectIndex, 1);
+                    saveAndRender();
+                }
+            };
 
-.component-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
-}
+            const handleDeleteComponent = (projectIndex, componentIndex) => {
+                 if (projects[projectIndex] && projects[projectIndex].components[componentIndex] && confirm(`Are you sure you want to delete the component "${projects[projectIndex].components[componentIndex].name}"?`)) {
+                    projects[projectIndex].components.splice(componentIndex, 1);
+                    saveAndRender();
+                }
+            };
 
-.component-item:last-child {
-    border-bottom: none;
-}
+            const makeEditable = (element, type, projectIndex, componentIndex = null) => {
+                const originalText = element.textContent;
+                // Prevent creating multiple inputs if already editing
+                if (element.querySelector('.editable-input')) return;
 
-.component-item input[type="checkbox"] {
-    margin-right: 10px;
-    width: 18px;
-    height: 18px;
-}
+                element.classList.add('relative'); // For positioning input if needed
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.value = originalText;
+                input.classList.add('editable-input', 'bg-slate-500', 'text-slate-100', 'w-full', 'p-1', 'rounded'); // Tailwind for input
 
-.component-item .component-name {
-    flex-grow: 1;
-    cursor: pointer;
-}
+                // Clear the element and append the input
+                element.innerHTML = '';
+                element.appendChild(input);
+                input.focus();
+                input.select(); // Select text for easy replacement
 
-.component-item .component-name.completed {
-    text-decoration: line-through;
-    color: #888;
-}
+                const saveChanges = () => {
+                    const newText = input.value.trim();
+                    if (newText && newText !== originalText) {
+                        if (type === 'project' && projects[projectIndex]) {
+                            projects[projectIndex].name = newText;
+                        } else if (type === 'component' && projects[projectIndex] && projects[projectIndex].components[componentIndex]) {
+                            projects[projectIndex].components[componentIndex].name = newText;
+                        }
+                        saveAndRender(); // This will redraw, removing the input
+                    } else if (!newText) {
+                        showMessage(`Name cannot be empty. Reverted to "${originalText}".`, 'error');
+                        // Re-render to restore original or simply set textContent back
+                        element.textContent = originalText; // Quick revert if not saving
+                        renderProjects(); // Full redraw to ensure consistency
+                    } else {
+                        // No change, just restore the original text display
+                        element.textContent = originalText;
+                        renderProjects();
+                    }
+                    // Clean up event listeners to prevent memory leaks
+                    input.removeEventListener('blur', handleBlur);
+                    input.removeEventListener('keypress', handleKeyPress);
+                };
 
-.component-item .component-actions button {
-    margin-left: 5px;
-    padding: 3px 6px;
-    font-size: 0.8em;
-    cursor: pointer;
-    background-color: #f0ad4e;
-    color: white;
-    border: none;
-    border-radius: 3px;
-}
+                const handleBlur = () => {
+                    // Delay saveChanges slightly to allow click on potential save button (if any)
+                    // or to handle Enter key press correctly.
+                    setTimeout(saveChanges, 100);
+                };
 
-.component-item .component-actions button.delete-component-btn {
-    background-color: #d9534f;
-}
+                const handleKeyPress = (e) => {
+                    if (e.key === 'Enter') {
+                        input.blur(); // This will trigger saveChanges via the blur event
+                    } else if (e.key === 'Escape') {
+                        input.value = originalText; // Revert on escape
+                        input.blur();
+                    }
+                };
 
-.component-item .component-actions button:hover {
-    opacity: 0.8;
-}
+                input.addEventListener('blur', handleBlur);
+                input.addEventListener('keypress', handleKeyPress);
+            };
 
-.editable {
-    border: 1px dashed #ccc;
-    padding: 2px 5px;
-    background-color: #fff;
-}
+
+            // --- Event Listener Setup ---
+            const addEventListenersToDynamicElements = () => {
+                // Delete Project Buttons
+                document.querySelectorAll('.delete-project-btn').forEach(button => {
+                    button.onclick = (e) => { // Use onclick for simplicity or manage event listeners carefully
+                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
+                        handleDeleteProject(projectIndex);
+                    };
+                });
+
+                // Add Component Buttons
+                document.querySelectorAll('.add-component-btn').forEach(button => {
+                    button.onclick = (e) => {
+                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
+                        const componentInput = e.currentTarget.previousElementSibling;
+                        handleAddComponent(projectIndex, componentInput);
+                    };
+                });
+
+                // Add component on Enter key press in component input
+                document.querySelectorAll('.new-component-name').forEach(input => {
+                    input.onkeypress = (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault(); // Prevent form submission if wrapped in a form
+                            const projectIndex = parseInt(input.nextElementSibling.dataset.projectIndex);
+                            handleAddComponent(projectIndex, input);
+                        }
+                    };
+                });
+
+                // Component Status Checkboxes
+                document.querySelectorAll('.component-status').forEach(checkbox => {
+                    checkbox.onchange = (e) => {
+                        const listItem = e.currentTarget.closest('.component-item');
+                        const projectIndex = parseInt(listItem.dataset.projectIndex);
+                        const componentIndex = parseInt(listItem.dataset.componentIndex);
+                        handleToggleComponentStatus(projectIndex, componentIndex);
+                    };
+                });
+
+                // Delete Component Buttons
+                document.querySelectorAll('.delete-component-btn').forEach(button => {
+                    button.onclick = (e) => {
+                        const listItem = e.currentTarget.closest('.component-item');
+                        const projectIndex = parseInt(listItem.dataset.projectIndex);
+                        const componentIndex = parseInt(listItem.dataset.componentIndex);
+                        handleDeleteComponent(projectIndex, componentIndex);
+                    };
+                });
+
+                // Edit Project Name (on dblclick or click, changed to click for better mobile UX)
+                document.querySelectorAll('h2.project-name').forEach(nameElement => {
+                    nameElement.onclick = (e) => { // Changed to single click
+                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
+                        makeEditable(e.currentTarget, 'project', projectIndex);
+                    };
+                });
+
+                // Edit Component Name (on dblclick or click, changed to click for better mobile UX)
+                document.querySelectorAll('span.component-item-name').forEach(nameElement => {
+                    nameElement.onclick = (e) => { // Changed to single click
+                        const listItem = e.currentTarget.closest('.component-item');
+                        const projectIndex = parseInt(listItem.dataset.projectIndex);
+                        const componentIndex = parseInt(listItem.dataset.componentIndex);
+                        makeEditable(e.currentTarget, 'component', projectIndex, componentIndex);
+                    };
+                });
+            };
+
+            const saveAndRender = () => {
+                saveProjects();
+                renderProjects();
+            };
+
+            // --- Initial Setup ---
+            addProjectBtn.addEventListener('click', handleAddProject);
+            newProjectNameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleAddProject();
+                }
+            });
+
+            renderProjects(); // Render initial projects from localStorage
+        });
+    </script>
+
+</body>
+</html>
