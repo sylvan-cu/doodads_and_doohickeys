@@ -60,7 +60,7 @@ async function generateIndex() {
     const filePromises = dirContents
       .filter(item => 
         !item.startsWith('.') && 
-        !['node_modules', 'package-lock.json', 'generate-index.js'].includes(item) &&
+        !['node_modules', 'package-lock.json', 'generate-index.js', 'index.html'].includes(item) &&
         (item.toLowerCase().endsWith('.html') || item.toLowerCase().endsWith('.htm'))
       )
       .map(async (item) => {
