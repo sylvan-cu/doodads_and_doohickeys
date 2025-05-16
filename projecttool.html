@@ -3,60 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Tracker</title>
+    <title>Project Tracker Advanced</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
-        /* Custom scrollbar for a cleaner look (optional) */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #888;
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555;
-        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2d3748; border-radius: 10px; } /* slate-800 */
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 10px; } /* slate-600 */
+        ::-webkit-scrollbar-thumb:hover { background: #718096; } /* slate-500 */
+
         body {
-            font-family: 'Inter', sans-serif; /* Using Inter font as suggested */
+            font-family: 'Inter', sans-serif;
         }
-        /* Style for the inline edit input */
         .editable-input {
-            border: 1px solid #3b82f6; /* blue-500 */
+            border: 1px solid #38bdf8; /* sky-400 */
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
-            width: calc(100% - 10px); /* Adjust width as needed */
+            width: calc(100% - 10px);
+            background-color: #475569; /* slate-600 */
+            color: #f1f5f9; /* slate-100 */
         }
-        /* Add a subtle animation for project/component addition */
+        .editable-textarea {
+            border: 1px solid #38bdf8; /* sky-400 */
+            padding: 0.5rem;
+            border-radius: 0.375rem; /* rounded-md */
+            width: 100%;
+            min-height: 60px;
+            background-color: #475569; /* slate-600 */
+            color: #f1f5f9; /* slate-100 */
+            resize: vertical;
+        }
         .new-item-animation {
-            animation: fadeIn 0.5s ease-out;
+            animation: fadeIn 0.3s ease-out;
         }
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
+            from { opacity: 0; transform: translateY(-8px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        /* Ensure buttons have good touch target size */
         button, input[type="checkbox"] {
-            min-width: 44px;
-            min-height: 44px;
-            padding: 0.5rem; /* Tailwind p-2 */
+            min-width: 36px; /* Slightly reduced for denser layout if needed */
+            min-height: 36px;
+            padding: 0.4rem;
         }
-        .project-header h2, .component-item-name {
-            word-break: break-word; /* Prevent long names from breaking layout */
+        .project-header h2, .component-item-name, .subtask-name {
+            word-break: break-word;
         }
+        .description-text {
+            font-style: italic;
+            color: #94a3b8; /* slate-400 */
+            font-size: 0.875rem; /* text-sm */
+            cursor: pointer;
+            white-space: pre-wrap;
+            word-break: break-word;
+            padding-left: 0.25rem; /* Small indent for description */
+        }
+        .description-text:empty::before {
+            content: 'Click to add description...';
+            font-style: italic;
+            color: #64748b; /* slate-500 */
+        }
+        .subtask-list {
+            margin-left: 1.25rem; /* ml-5 */
+            border-left: 2px solid #475569; /* slate-600 */
+            padding-left: 0.75rem; /* pl-3 */
+        }
+        .collapse-btn {
+            color: #94a3b8; /* slate-400 */
+            transition: color 0.15s ease-in-out, transform 0.2s ease-in-out;
+        }
+        .collapse-btn:hover {
+            color: #e2e8f0; /* slate-200 */
+        }
+        .collapse-btn.collapsed .fa-chevron-down {
+             transform: rotate(-90deg);
+        }
+         .collapsible-content.hidden {
+            display: none;
+        }
+
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="bg-gradient-to-br from-slate-900 to-slate-700 text-slate-100 min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-4">
+<body class="bg-gradient-to-br from-slate-900 to-slate-700 text-slate-100 min-h-screen flex flex-col items-center pt-6 sm:pt-10 px-4 pb-10">
 
-    <div class="container bg-slate-800 shadow-2xl rounded-xl p-4 sm:p-8 w-full max-w-2xl">
+    <div class="container bg-slate-800 shadow-2xl rounded-xl p-4 sm:p-8 w-full max-w-3xl">
         <header class="mb-6 sm:mb-8 text-center">
-            <h1 class="text-3xl sm:text-4xl font-bold text-sky-400">Project Tracker</h1>
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-400">Project Tracker Advanced</h1>
         </header>
 
         <section class="mb-6 sm:mb-8">
@@ -73,13 +106,13 @@
          <p id="no-projects-message" class="text-center text-slate-400 mt-8 hidden">No projects yet. Add one to get started!</p>
     </div>
 
-    <div id="message-box" class="fixed top-5 right-5 bg-red-500 text-white p-4 rounded-lg shadow-lg hidden transition-opacity duration-300">
+    <div id="message-box" class="fixed top-5 right-5 bg-red-500 text-white p-4 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50">
         <p id="message-text"></p>
     </div>
 
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
             const newProjectNameInput = document.getElementById('new-project-name');
             const addProjectBtn = document.getElementById('add-project-btn');
             const projectsContainer = document.getElementById('projects-container');
@@ -87,62 +120,70 @@
             const messageBox = document.getElementById('message-box');
             const messageText = document.getElementById('message-text');
 
-            let projects = JSON.parse(localStorage.getItem('projectsTrackerApp')) || [];
+            // Application State
+            let projects = JSON.parse(localStorage.getItem('projectsTrackerAdvancedApp')) || [];
 
             // --- Utility Functions ---
             const showMessage = (message, type = 'error') => {
                 messageText.textContent = message;
-                messageBox.classList.remove('hidden', 'bg-red-500', 'bg-green-500');
-                if (type === 'error') {
-                    messageBox.classList.add('bg-red-500');
-                } else if (type === 'success') {
-                    messageBox.classList.add('bg-green-500');
-                }
-                messageBox.classList.remove('opacity-0');
+                messageBox.className = 'fixed top-5 right-5 text-white p-4 rounded-lg shadow-lg transition-opacity duration-300 z-50';
+                if (type === 'error') messageBox.classList.add('bg-red-500');
+                else if (type === 'success') messageBox.classList.add('bg-green-500');
+                messageBox.classList.remove('hidden', 'opacity-0');
                 messageBox.classList.add('opacity-100');
                 setTimeout(() => {
-                    messageBox.classList.remove('opacity-100');
                     messageBox.classList.add('opacity-0');
                     setTimeout(() => messageBox.classList.add('hidden'), 300);
                 }, 3000);
             };
 
             const saveProjects = () => {
-                localStorage.setItem('projectsTrackerApp', JSON.stringify(projects));
+                localStorage.setItem('projectsTrackerAdvancedApp', JSON.stringify(projects));
             };
+
+            const generateId = () => Date.now().toString();
 
             // --- Rendering Functions ---
             const renderProjects = () => {
-                projectsContainer.innerHTML = ''; // Clear existing projects
-                if (projects.length === 0) {
-                    noProjectsMessage.classList.remove('hidden');
-                } else {
-                    noProjectsMessage.classList.add('hidden');
-                }
+                projectsContainer.innerHTML = '';
+                noProjectsMessage.classList.toggle('hidden', projects.length > 0);
 
                 projects.forEach((project, projectIndex) => {
+                    // Ensure isCollapsed property exists, default to false (expanded)
+                    project.isCollapsed = project.isCollapsed === undefined ? false : project.isCollapsed;
+
                     const projectDiv = document.createElement('div');
-                    projectDiv.classList.add('project', 'bg-slate-700', 'p-4', 'sm:p-5', 'rounded-xl', 'shadow-xl', 'new-item-animation');
-                    projectDiv.dataset.projectId = project.id; // Use a unique ID for projects
+                    projectDiv.classList.add('project', 'bg-slate-700', 'p-4', 'sm:p-5', 'rounded-xl', 'shadow-xl'); // Removed new-item-animation from here to apply on content
+                    projectDiv.dataset.projectId = project.id;
+                    const projectContentId = `project-content-${project.id}`;
 
                     projectDiv.innerHTML = `
-                        <div class="project-header flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                            <h2 class="project-name text-xl sm:text-2xl font-semibold text-sky-300 hover:text-sky-200 cursor-pointer mb-2 sm:mb-0" data-project-index="${projectIndex}">${project.name}</h2>
-                            <div class="actions space-x-2">
+                        <div class="project-header flex justify-between items-center mb-2">
+                            <div class="flex items-center flex-grow min-w-0">
+                                <button class="collapse-project-btn collapse-btn p-2 rounded-md mr-2 ${project.isCollapsed ? 'collapsed' : ''}" data-project-index="${projectIndex}" aria-expanded="${!project.isCollapsed}" aria-controls="${projectContentId}">
+                                    <i class="fas fa-chevron-down fa-sm"></i>
+                                </button>
+                                <h2 class="project-name text-xl sm:text-2xl font-semibold text-sky-300 hover:text-sky-200 cursor-pointer truncate" data-project-index="${projectIndex}" title="${project.name}">${project.name}</h2>
+                            </div>
+                            <div class="actions space-x-2 flex-shrink-0">
                                 <button class="delete-project-btn text-red-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-md" data-project-index="${projectIndex}" aria-label="Delete project ${project.name}">
                                     <i class="fas fa-trash-alt fa-lg"></i>
                                 </button>
                             </div>
                         </div>
-                        <div class="component-input-section flex flex-col sm:flex-row gap-2 mb-4">
-                            <input type="text" class="new-component-name flex-grow p-3 bg-slate-600 border border-slate-500 rounded-lg placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" placeholder="Add new component...">
-                            <button class="add-component-btn bg-emerald-500 hover:bg-emerald-600 text-white font-semibold p-3 rounded-lg shadow-md transition-colors duration-150 flex items-center justify-center" data-project-index="${projectIndex}">
-                                <i class="fas fa-plus mr-2"></i> Add Component
-                            </button>
+                        <div class="project-description description-text mb-3 ml-10" data-project-index="${projectIndex}">${project.description || ''}</div>
+                        
+                        <div id="${projectContentId}" class="project-content collapsible-content ${project.isCollapsed ? 'hidden' : ''} pl-2 sm:pl-4 new-item-animation">
+                            <div class="component-input-section flex flex-col sm:flex-row gap-2 my-4 ml-6">
+                                <input type="text" class="new-component-name flex-grow p-3 bg-slate-600 border border-slate-500 rounded-lg placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" placeholder="Add component to '${project.name}'...">
+                                <button class="add-component-btn bg-emerald-500 hover:bg-emerald-600 text-white font-semibold p-3 rounded-lg shadow-md transition-colors duration-150 flex items-center justify-center" data-project-index="${projectIndex}">
+                                    <i class="fas fa-plus mr-2"></i> Add Component
+                                </button>
+                            </div>
+                            <ul class="component-list space-y-3 ml-6">
+                                ${renderComponents(project.components, projectIndex)}
+                            </ul>
                         </div>
-                        <ul class="component-list space-y-2">
-                            ${renderComponents(project.components, projectIndex)}
-                        </ul>
                     `;
                     projectsContainer.appendChild(projectDiv);
                 });
@@ -151,15 +192,62 @@
 
             const renderComponents = (components, projectIndex) => {
                 if (!components || components.length === 0) {
-                    return '<li class="text-slate-400 text-sm px-2">No components yet.</li>';
+                    return '<li class="text-slate-400 text-sm px-2 py-1">No components yet.</li>';
                 }
-                return components.map((component, componentIndex) => `
-                    <li class="component-item flex items-center justify-between p-3 bg-slate-600 hover:bg-slate-500/50 rounded-lg transition-colors duration-150 new-item-animation" data-project-index="${projectIndex}" data-component-index="${componentIndex}" data-component-id="${component.id}">
-                        <div class="flex items-center flex-grow min-w-0 mr-2"> <input type="checkbox" class="component-status h-5 w-5 text-sky-500 bg-slate-500 border-slate-400 rounded focus:ring-sky-400 focus:ring-offset-slate-600 mr-3 flex-shrink-0" ${component.completed ? 'checked' : ''} aria-label="Mark component ${component.name} as ${component.completed ? 'incomplete' : 'complete'}">
-                            <span class="component-item-name text-slate-200 ${component.completed ? 'line-through text-slate-400' : ''} cursor-pointer truncate" title="${component.name}">${component.name}</span>
+                return components.map((component, componentIndex) => {
+                    // Ensure isCollapsed property exists, default to false (expanded)
+                    component.isCollapsed = component.isCollapsed === undefined ? false : component.isCollapsed;
+                    const hasSubTasks = component.subTasks && component.subTasks.length > 0;
+                    const componentContentId = `component-content-${projects[projectIndex].id}-${component.id}`;
+
+                    return `
+                    <li class="component-item bg-slate-600/70 hover:bg-slate-600 p-3 rounded-lg transition-colors duration-150" data-project-index="${projectIndex}" data-component-index="${componentIndex}" data-component-id="${component.id}">
+                        <div class="flex items-center justify-between mb-1">
+                            <div class="flex items-center flex-grow min-w-0 mr-2">
+                                <input type="checkbox" class="component-status h-5 w-5 text-sky-500 bg-slate-500 border-slate-400 rounded focus:ring-sky-400 focus:ring-offset-slate-700 mr-3 flex-shrink-0" ${component.completed ? 'checked' : ''} aria-label="Mark component ${component.name} as ${component.completed ? 'incomplete' : 'complete'}">
+                                <span class="component-item-name text-lg font-medium text-slate-100 ${component.completed ? 'line-through text-slate-400' : ''} cursor-pointer truncate" title="${component.name}">${component.name}</span>
+                            </div>
+                            <div class="actions flex items-center space-x-1 flex-shrink-0">
+                                <button class="collapse-component-btn collapse-btn p-1.5 rounded-md ${hasSubTasks ? '' : 'invisible'} ${component.isCollapsed ? 'collapsed' : ''}" data-project-index="${projectIndex}" data-component-index="${componentIndex}" aria-expanded="${!component.isCollapsed}" aria-controls="${componentContentId}">
+                                    <i class="fas fa-chevron-down fa-xs"></i>
+                                </button>
+                                <button class="delete-component-btn text-rose-400 hover:text-rose-500 transition-colors duration-150 p-1.5 rounded-md" aria-label="Delete component ${component.name}">
+                                    <i class="fas fa-times-circle fa-lg"></i>
+                                </button>
+                            </div>
                         </div>
-                        <button class="delete-component-btn text-rose-400 hover:text-rose-500 transition-colors duration-150 p-2 rounded-md flex-shrink-0" aria-label="Delete component ${component.name}">
-                            <i class="fas fa-times-circle fa-lg"></i>
+                        <div class="component-description description-text ml-8 mb-2" data-project-index="${projectIndex}" data-component-index="${componentIndex}">${component.description || ''}</div>
+                        
+                        <div id="${componentContentId}" class="component-sub-content collapsible-content ${component.isCollapsed ? 'hidden' : ''} new-item-animation">
+                            <div class="subtask-section ml-8">
+                                <div class="subtask-input-section flex flex-col sm:flex-row gap-2 my-2">
+                                    <input type="text" class="new-subtask-name flex-grow p-2 bg-slate-500 border border-slate-400 rounded-md placeholder-slate-300 text-sm focus:ring-1 focus:ring-sky-500 outline-none" placeholder="Add sub-task...">
+                                    <button class="add-subtask-btn bg-sky-600 hover:bg-sky-700 text-white font-medium p-2 text-xs rounded-md flex items-center justify-center" data-project-index="${projectIndex}" data-component-index="${componentIndex}">
+                                        <i class="fas fa-plus mr-1"></i> Add Sub-task
+                                    </button>
+                                </div>
+                                <ul class="subtask-list space-y-1.5">
+                                    ${renderSubTasks(component.subTasks, projectIndex, componentIndex)}
+                                </ul>
+                            </div>
+                        </div>
+                    </li>
+                `;
+                }).join('');
+            };
+
+            const renderSubTasks = (subTasks, projectIndex, componentIndex) => {
+                if (!subTasks || subTasks.length === 0) {
+                    return '<li class="text-slate-400/80 text-xs px-1 py-0.5">No sub-tasks yet.</li>';
+                }
+                return subTasks.map((subTask, subTaskIndex) => `
+                    <li class="subtask-item flex items-center justify-between p-1.5 bg-slate-500/60 hover:bg-slate-500/80 rounded-md transition-colors duration-150" data-project-index="${projectIndex}" data-component-index="${componentIndex}" data-subtask-index="${subTaskIndex}" data-subtask-id="${subTask.id}">
+                        <div class="flex items-center flex-grow min-w-0 mr-2">
+                            <input type="checkbox" class="subtask-status h-4 w-4 text-sky-400 bg-slate-400 border-slate-300 rounded focus:ring-sky-300 focus:ring-offset-slate-600 mr-2 flex-shrink-0" ${subTask.completed ? 'checked' : ''} aria-label="Mark sub-task ${subTask.name} as ${subTask.completed ? 'incomplete' : 'complete'}">
+                            <span class="subtask-name text-sm text-slate-200 ${subTask.completed ? 'line-through text-slate-400' : ''} cursor-pointer truncate" title="${subTask.name}">${subTask.name}</span>
+                        </div>
+                        <button class="delete-subtask-btn text-rose-500 hover:text-rose-600 transition-colors duration-150 p-1 rounded-md flex-shrink-0" aria-label="Delete sub-task ${subTask.name}">
+                            <i class="fas fa-times fa-sm"></i>
                         </button>
                     </li>
                 `).join('');
@@ -169,177 +257,166 @@
             const handleAddProject = () => {
                 const projectName = newProjectNameInput.value.trim();
                 if (projectName) {
-                    projects.push({ id: Date.now().toString(), name: projectName, components: [] });
+                    projects.unshift({ id: generateId(), name: projectName, description: '', components: [], isCollapsed: false }); // Add to top and default expanded
                     newProjectNameInput.value = '';
                     saveAndRender();
-                } else {
-                    showMessage('Please enter a project name.', 'error');
-                }
+                } else { showMessage('Project name cannot be empty.', 'error'); }
             };
 
-            const handleAddComponent = (projectIndex, componentNameInput) => {
-                const componentName = componentNameInput.value.trim();
-                if (componentName) {
-                    if (projects[projectIndex]) {
-                        projects[projectIndex].components.push({ id: Date.now().toString(), name: componentName, completed: false });
-                        componentNameInput.value = '';
-                        saveAndRender();
-                    } else {
-                         showMessage('Project not found. Please refresh.', 'error');
+            const handleAddComponent = (projectIndex, inputElement) => {
+                const componentName = inputElement.value.trim();
+                if (componentName && projects[projectIndex]) {
+                    projects[projectIndex].components.push({ id: generateId(), name: componentName, description: '', completed: false, subTasks: [], isCollapsed: false });
+                    inputElement.value = '';
+                    saveAndRender();
+                } else if (!componentName) { showMessage('Component name cannot be empty.', 'error'); }
+            };
+
+            const handleAddSubTask = (projectIndex, componentIndex, inputElement) => {
+                const subTaskName = inputElement.value.trim();
+                if (subTaskName && projects[projectIndex]?.components[componentIndex]) {
+                    projects[projectIndex].components[componentIndex].subTasks.push({ id: generateId(), name: subTaskName, completed: false });
+                    // If adding the first subtask, ensure the parent component is expanded
+                    if (projects[projectIndex].components[componentIndex].subTasks.length === 1) {
+                        projects[projectIndex].components[componentIndex].isCollapsed = false;
                     }
-                } else {
-                    showMessage('Please enter a component name.', 'error');
-                }
+                    inputElement.value = '';
+                    saveAndRender();
+                } else if (!subTaskName) { showMessage('Sub-task name cannot be empty.', 'error'); }
+            };
+            
+            const genericToggleStatus = (item) => {
+                item.completed = !item.completed;
+                saveAndRender();
             };
 
-            const handleToggleComponentStatus = (projectIndex, componentIndex) => {
-                if (projects[projectIndex] && projects[projectIndex].components[componentIndex]) {
-                    projects[projectIndex].components[componentIndex].completed = !projects[projectIndex].components[componentIndex].completed;
+            const handleDeleteItem = (itemArray, index, itemName, itemType) => {
+                if (confirm(`Are you sure you want to delete this ${itemType}: "${itemName}"? ${itemType === 'project' || itemType === 'component' ? 'This will also delete its children.' : ''}`)) {
+                    itemArray.splice(index, 1);
                     saveAndRender();
                 }
             };
+            
+            const makeEditable = (element, item, property, itemType) => {
+                if (element.querySelector('.editable-input, .editable-textarea')) return;
+                const originalText = item[property] || '';
+                const isTextarea = property.includes('description');
+                const inputElement = document.createElement(isTextarea ? 'textarea' : 'input');
+                
+                inputElement.classList.add(isTextarea ? 'editable-textarea' : 'editable-input');
+                inputElement.value = originalText;
+                if (!isTextarea) inputElement.type = 'text';
 
-            const handleDeleteProject = (projectIndex) => {
-                if (projects[projectIndex] && confirm(`Are you sure you want to delete the project "${projects[projectIndex].name}"? This will also delete all its components.`)) {
-                    projects.splice(projectIndex, 1);
-                    saveAndRender();
-                }
-            };
-
-            const handleDeleteComponent = (projectIndex, componentIndex) => {
-                 if (projects[projectIndex] && projects[projectIndex].components[componentIndex] && confirm(`Are you sure you want to delete the component "${projects[projectIndex].components[componentIndex].name}"?`)) {
-                    projects[projectIndex].components.splice(componentIndex, 1);
-                    saveAndRender();
-                }
-            };
-
-            const makeEditable = (element, type, projectIndex, componentIndex = null) => {
-                const originalText = element.textContent;
-                // Prevent creating multiple inputs if already editing
-                if (element.querySelector('.editable-input')) return;
-
-                element.classList.add('relative'); // For positioning input if needed
-                const input = document.createElement('input');
-                input.type = 'text';
-                input.value = originalText;
-                input.classList.add('editable-input', 'bg-slate-500', 'text-slate-100', 'w-full', 'p-1', 'rounded'); // Tailwind for input
-
-                // Clear the element and append the input
                 element.innerHTML = '';
-                element.appendChild(input);
-                input.focus();
-                input.select(); // Select text for easy replacement
+                element.appendChild(inputElement);
+                inputElement.focus();
+                if (!isTextarea) inputElement.select();
 
                 const saveChanges = () => {
-                    const newText = input.value.trim();
-                    if (newText && newText !== originalText) {
-                        if (type === 'project' && projects[projectIndex]) {
-                            projects[projectIndex].name = newText;
-                        } else if (type === 'component' && projects[projectIndex] && projects[projectIndex].components[componentIndex]) {
-                            projects[projectIndex].components[componentIndex].name = newText;
-                        }
-                        saveAndRender(); // This will redraw, removing the input
-                    } else if (!newText) {
-                        showMessage(`Name cannot be empty. Reverted to "${originalText}".`, 'error');
-                        // Re-render to restore original or simply set textContent back
-                        element.textContent = originalText; // Quick revert if not saving
-                        renderProjects(); // Full redraw to ensure consistency
-                    } else {
-                        // No change, just restore the original text display
-                        element.textContent = originalText;
-                        renderProjects();
-                    }
-                    // Clean up event listeners to prevent memory leaks
-                    input.removeEventListener('blur', handleBlur);
-                    input.removeEventListener('keypress', handleKeyPress);
+                    const newText = inputElement.value.trim();
+                    if (newText && newText !== originalText) item[property] = newText;
+                    else if (!newText && property.includes('name')) {
+                        showMessage(`${itemType} name cannot be empty. Reverted.`, 'error');
+                        item[property] = originalText;
+                    } else if (!newText && property.includes('description')) item[property] = '';
+                    saveAndRender(); 
                 };
-
-                const handleBlur = () => {
-                    // Delay saveChanges slightly to allow click on potential save button (if any)
-                    // or to handle Enter key press correctly.
-                    setTimeout(saveChanges, 100);
+                
+                const handleBlur = () => setTimeout(saveChanges, 100);
+                const handleKeyDown = (e) => {
+                    if (e.key === 'Enter' && (!isTextarea || e.ctrlKey)) { e.preventDefault(); inputElement.blur(); } 
+                    else if (e.key === 'Escape') { inputElement.value = originalText; inputElement.blur(); }
                 };
-
-                const handleKeyPress = (e) => {
-                    if (e.key === 'Enter') {
-                        input.blur(); // This will trigger saveChanges via the blur event
-                    } else if (e.key === 'Escape') {
-                        input.value = originalText; // Revert on escape
-                        input.blur();
-                    }
-                };
-
-                input.addEventListener('blur', handleBlur);
-                input.addEventListener('keypress', handleKeyPress);
+                inputElement.addEventListener('blur', handleBlur);
+                inputElement.addEventListener('keydown', handleKeyDown);
             };
 
+            const handleToggleProjectCollapse = (projectIndex) => {
+                if (projects[projectIndex]) {
+                    projects[projectIndex].isCollapsed = !projects[projectIndex].isCollapsed;
+                    saveAndRender();
+                }
+            };
+
+            const handleToggleComponentCollapse = (projectIndex, componentIndex) => {
+                if (projects[projectIndex] && projects[projectIndex].components[componentIndex]) {
+                    projects[projectIndex].components[componentIndex].isCollapsed = !projects[projectIndex].components[componentIndex].isCollapsed;
+                    saveAndRender();
+                }
+            };
 
             // --- Event Listener Setup ---
             const addEventListenersToDynamicElements = () => {
-                // Delete Project Buttons
-                document.querySelectorAll('.delete-project-btn').forEach(button => {
-                    button.onclick = (e) => { // Use onclick for simplicity or manage event listeners carefully
-                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
-                        handleDeleteProject(projectIndex);
-                    };
+                // Project Name & Description Edit
+                document.querySelectorAll('.project-name').forEach(el => el.onclick = e => {
+                    const pIdx = parseInt(e.currentTarget.dataset.projectIndex);
+                    makeEditable(e.currentTarget, projects[pIdx], 'name', 'project');
+                });
+                document.querySelectorAll('.project-description').forEach(el => el.onclick = e => {
+                    const pIdx = parseInt(e.currentTarget.dataset.projectIndex);
+                    makeEditable(e.currentTarget, projects[pIdx], 'description', 'project');
+                });
+                // Project Delete & Collapse
+                document.querySelectorAll('.delete-project-btn').forEach(btn => btn.onclick = e => {
+                    const pIdx = parseInt(e.currentTarget.dataset.projectIndex);
+                    handleDeleteItem(projects, pIdx, projects[pIdx].name, 'project');
+                });
+                document.querySelectorAll('.collapse-project-btn').forEach(btn => btn.onclick = e => {
+                    const pIdx = parseInt(e.currentTarget.dataset.projectIndex);
+                    handleToggleProjectCollapse(pIdx);
                 });
 
-                // Add Component Buttons
-                document.querySelectorAll('.add-component-btn').forEach(button => {
-                    button.onclick = (e) => {
-                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
-                        const componentInput = e.currentTarget.previousElementSibling;
-                        handleAddComponent(projectIndex, componentInput);
-                    };
+                // Component Add
+                document.querySelectorAll('.add-component-btn').forEach(btn => btn.onclick = e => {
+                    const pIdx = parseInt(e.currentTarget.dataset.projectIndex);
+                    handleAddComponent(pIdx, e.currentTarget.previousElementSibling);
+                });
+                document.querySelectorAll('.new-component-name').forEach(input => input.onkeypress = e => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const pIdx = parseInt(input.nextElementSibling.dataset.projectIndex); // button is next sibling
+                        handleAddComponent(pIdx, input);
+                    }
                 });
 
-                // Add component on Enter key press in component input
-                document.querySelectorAll('.new-component-name').forEach(input => {
-                    input.onkeypress = (e) => {
-                        if (e.key === 'Enter') {
-                            e.preventDefault(); // Prevent form submission if wrapped in a form
-                            const projectIndex = parseInt(input.nextElementSibling.dataset.projectIndex);
-                            handleAddComponent(projectIndex, input);
-                        }
-                    };
+                // Component Name, Description, Status, Delete, Collapse
+                document.querySelectorAll('.component-item').forEach(item => {
+                    const pIdx = parseInt(item.dataset.projectIndex);
+                    const cIdx = parseInt(item.dataset.componentIndex);
+
+                    item.querySelector('.component-item-name').onclick = e => makeEditable(e.currentTarget, projects[pIdx].components[cIdx], 'name', 'component');
+                    item.querySelector('.component-description').onclick = e => makeEditable(e.currentTarget, projects[pIdx].components[cIdx], 'description', 'component');
+                    item.querySelector('.component-status').onchange = () => genericToggleStatus(projects[pIdx].components[cIdx]);
+                    item.querySelector('.delete-component-btn').onclick = () => handleDeleteItem(projects[pIdx].components, cIdx, projects[pIdx].components[cIdx].name, 'component');
+                    
+                    const collapseBtn = item.querySelector('.collapse-component-btn');
+                    if (collapseBtn) { // Button might be invisible if no subtasks
+                        collapseBtn.onclick = () => handleToggleComponentCollapse(pIdx, cIdx);
+                    }
+                });
+                
+                // Sub-task Add
+                document.querySelectorAll('.add-subtask-btn').forEach(btn => btn.onclick = e => {
+                    const { projectIndex: pIdx, componentIndex: cIdx } = e.currentTarget.dataset;
+                    handleAddSubTask(parseInt(pIdx), parseInt(cIdx), e.currentTarget.previousElementSibling);
+                });
+                document.querySelectorAll('.new-subtask-name').forEach(input => input.onkeypress = e => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const { projectIndex: pIdx, componentIndex: cIdx } = input.nextElementSibling.dataset;
+                        handleAddSubTask(parseInt(pIdx), parseInt(cIdx), input);
+                    }
                 });
 
-                // Component Status Checkboxes
-                document.querySelectorAll('.component-status').forEach(checkbox => {
-                    checkbox.onchange = (e) => {
-                        const listItem = e.currentTarget.closest('.component-item');
-                        const projectIndex = parseInt(listItem.dataset.projectIndex);
-                        const componentIndex = parseInt(listItem.dataset.componentIndex);
-                        handleToggleComponentStatus(projectIndex, componentIndex);
-                    };
-                });
+                // Sub-task Name, Status, Delete
+                document.querySelectorAll('.subtask-item').forEach(item => {
+                    const pIdx = parseInt(item.dataset.projectIndex);
+                    const cIdx = parseInt(item.dataset.componentIndex);
+                    const sIdx = parseInt(item.dataset.subtaskIndex);
 
-                // Delete Component Buttons
-                document.querySelectorAll('.delete-component-btn').forEach(button => {
-                    button.onclick = (e) => {
-                        const listItem = e.currentTarget.closest('.component-item');
-                        const projectIndex = parseInt(listItem.dataset.projectIndex);
-                        const componentIndex = parseInt(listItem.dataset.componentIndex);
-                        handleDeleteComponent(projectIndex, componentIndex);
-                    };
-                });
-
-                // Edit Project Name (on dblclick or click, changed to click for better mobile UX)
-                document.querySelectorAll('h2.project-name').forEach(nameElement => {
-                    nameElement.onclick = (e) => { // Changed to single click
-                        const projectIndex = parseInt(e.currentTarget.dataset.projectIndex);
-                        makeEditable(e.currentTarget, 'project', projectIndex);
-                    };
-                });
-
-                // Edit Component Name (on dblclick or click, changed to click for better mobile UX)
-                document.querySelectorAll('span.component-item-name').forEach(nameElement => {
-                    nameElement.onclick = (e) => { // Changed to single click
-                        const listItem = e.currentTarget.closest('.component-item');
-                        const projectIndex = parseInt(listItem.dataset.projectIndex);
-                        const componentIndex = parseInt(listItem.dataset.componentIndex);
-                        makeEditable(e.currentTarget, 'component', projectIndex, componentIndex);
-                    };
+                    item.querySelector('.subtask-name').onclick = e => makeEditable(e.currentTarget, projects[pIdx].components[cIdx].subTasks[sIdx], 'name', 'sub-task');
+                    item.querySelector('.subtask-status').onchange = () => genericToggleStatus(projects[pIdx].components[cIdx].subTasks[sIdx]);
+                    item.querySelector('.delete-subtask-btn').onclick = () => handleDeleteItem(projects[pIdx].components[cIdx].subTasks, sIdx, projects[pIdx].components[cIdx].subTasks[sIdx].name, 'sub-task');
                 });
             };
 
@@ -350,13 +427,8 @@
 
             // --- Initial Setup ---
             addProjectBtn.addEventListener('click', handleAddProject);
-            newProjectNameInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    handleAddProject();
-                }
-            });
-
-            renderProjects(); // Render initial projects from localStorage
+            newProjectNameInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleAddProject(); });
+            renderProjects();
         });
     </script>
 
