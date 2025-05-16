@@ -72,14 +72,15 @@
         .priority-low { background-color: var(--priority-low-color); }
         .priority-none { background-color: var(--priority-none-color); }
 
-        .task-date { font-size: 0.75rem; color: #a0aec0; /* gray-400 via Tailwind color palette */ margin-left: 8px; }
+        .task-date { font-size: 0.75rem; color: #a0aec0; /* gray-400 */ margin-left: 8px; }
 
-        .sort-controls select, .sort-controls button {
+        .global-sort-controls select, .global-sort-controls button {
             background-color: #374151; /* gray-700 */
             color: #e5e7eb; /* gray-200 */
             border: 1px solid #4b5563; /* gray-600 */
-            padding: 0.3rem 0.6rem;
-            font-size: 0.875rem;
+            padding: 0.5rem 0.8rem; /* Increased padding */
+            font-size: 0.875rem; /* text-sm */
+            border-radius: 0.375rem; /* rounded-md */
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -100,12 +101,26 @@
             </div>
         </section>
 
+        <section class="global-sort-controls flex flex-wrap gap-3 items-center mb-6 p-3 bg-slate-700/50 rounded-lg">
+            <span class="text-slate-300 font-medium">Sort Projects By:</span>
+            <select id="global-sort-by-select" class="flex-grow sm:flex-grow-0">
+                <option value="default">Default (Creation Order)</option>
+                <option value="name">Name</option>
+                <option value="date">Earliest Due Date</option>
+                <option value="priority">Highest Priority</option>
+                <option value="remaining">Remaining Tasks</option>
+            </select>
+            <button id="global-sort-direction-btn" aria-label="Toggle sort direction">
+                <i class="fas fa-arrow-up-a-z"></i>
+            </button>
+        </section>
+
         <section id="projects-list-container" class="space-y-6">
             </section>
          <p id="no-projects-message" class="text-center text-slate-400 mt-8 hidden">No projects yet. Add one to get started!</p>
     </div>
 
-    <div id="message-box" class="fixed top-5 right-5 bg-red-500 text-white p-4 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50">
+    <div id="message-box" class="fixed top-5 right-5 text-white p-4 rounded-lg shadow-lg hidden transition-opacity duration-300 z-50">
         <p id="message-text"></p>
     </div>
 
@@ -118,117 +133,166 @@
             const noProjectsMessage = document.getElementById('no-projects-message');
             const messageBox = document.getElementById('message-box');
             const messageText = document.getElementById('message-text');
+            const globalSortBySelect = document.getElementById('global-sort-by-select');
+            const globalSortDirectionBtn = document.getElementById('global-sort-direction-btn');
 
             // Application State
-            let projects = JSON.parse(localStorage.getItem('projectTrackerProApp')) || [];
+            let projects = JSON.parse(localStorage.getItem('projectTrackerProGlobalSortApp')) || [];
+            let globalSortBy = localStorage.getItem('projectTrackerGlobalSortBy') || 'default';
+            let globalSortDirection = localStorage.getItem('projectTrackerGlobalSortDir') || 'asc';
+
 
             // --- Utility Functions ---
-            const showMessage = (message, type = 'error') => { /* ... (same as before) ... */ };
-            const saveProjects = () => localStorage.setItem('projectTrackerProApp', JSON.stringify(projects));
+            const showMessage = (message, type = 'error') => {
+                messageText.textContent = message;
+                messageBox.className = 'fixed top-5 right-5 text-white p-4 rounded-lg shadow-lg transition-opacity duration-300 z-50';
+                if (type === 'error') messageBox.classList.add('bg-red-500');
+                else if (type === 'success') messageBox.classList.add('bg-green-500');
+                else messageBox.classList.add('bg-sky-500');
+                messageBox.classList.remove('hidden', 'opacity-0');
+                messageBox.classList.add('opacity-100');
+                setTimeout(() => {
+                    messageBox.classList.add('opacity-0');
+                    setTimeout(() => messageBox.classList.add('hidden'), 300);
+                }, 3000);
+            };
+            const saveGlobalSortSettings = () => {
+                localStorage.setItem('projectTrackerGlobalSortBy', globalSortBy);
+                localStorage.setItem('projectTrackerGlobalSortDir', globalSortDirection);
+            };
+            const saveProjects = () => {
+                localStorage.setItem('projectTrackerProGlobalSortApp', JSON.stringify(projects));
+                saveGlobalSortSettings();
+            };
             const generateId = () => Date.now().toString() + Math.random().toString(36).substring(2, 7);
 
-            // --- Core Data Structure ---
-            // Project: { id, name, description, tasks: [], isCollapsed, sortBy, sortDirection }
-            // Task: { id, name, description, completed, date, priority, tasks: [], isCollapsed }
-            // Priority: 'none', 'low', 'medium', 'high'
+            // --- Sorting Helper Functions for Projects ---
+            const getProjectEffectiveDate = (project) => {
+                let earliestDate = null;
+                function findEarliest(tasks) {
+                    if (!tasks) return;
+                    tasks.forEach(task => {
+                        if (task.date) {
+                            const taskDate = new Date(task.date);
+                            if (!earliestDate || taskDate < earliestDate) {
+                                earliestDate = taskDate;
+                            }
+                        }
+                        if (task.tasks) findEarliest(task.tasks);
+                    });
+                }
+                findEarliest(project.tasks);
+                return earliestDate;
+            };
 
+            const getProjectEffectivePriority = (project) => {
+                let highestPriority = 'none';
+                const prioritiesOrder = { 'high': 0, 'medium': 1, 'low': 2, 'none': 3 };
+                function findHighest(tasks) {
+                    if (!tasks) return;
+                    tasks.forEach(task => {
+                        if (task.priority && (prioritiesOrder[task.priority] < prioritiesOrder[highestPriority])) {
+                            highestPriority = task.priority;
+                        }
+                        if (task.tasks) findHighest(task.tasks);
+                    });
+                }
+                findHighest(project.tasks);
+                return highestPriority;
+            };
+            
             // --- Rendering Functions ---
             const renderProjects = () => {
                 projectsListContainer.innerHTML = '';
                 noProjectsMessage.classList.toggle('hidden', projects.length > 0);
 
-                projects.forEach((project, projectIndex) => {
-                    project.isCollapsed = project.isCollapsed === undefined ? false : project.isCollapsed;
-                    project.sortBy = project.sortBy || 'default';
-                    project.sortDirection = project.sortDirection || 'asc';
+                let projectsToRender = [...projects];
 
+                if (globalSortBy !== 'default') {
+                    projectsToRender.sort((a, b) => {
+                        let comparison = 0;
+                        switch (globalSortBy) {
+                            case 'name':
+                                comparison = a.name.localeCompare(b.name);
+                                break;
+                            case 'date':
+                                const dateA = getProjectEffectiveDate(a);
+                                const dateB = getProjectEffectiveDate(b);
+                                if (dateA && dateB) comparison = dateA - dateB;
+                                else if (dateA) comparison = -1; // Projects with dates first
+                                else if (dateB) comparison = 1;
+                                break;
+                            case 'priority':
+                                const priorities = { 'high': 0, 'medium': 1, 'low': 2, 'none': 3 };
+                                comparison = (priorities[getProjectEffectivePriority(a)] || 3) - (priorities[getProjectEffectivePriority(b)] || 3);
+                                break;
+                            case 'remaining':
+                                comparison = countIncompleteTasks(a) - countIncompleteTasks(b);
+                                break;
+                        }
+                        return globalSortDirection === 'asc' ? comparison : -comparison;
+                    });
+                } else {
+                    // For 'default', if projects are added with unshift, they are newest first.
+                    // If 'asc' is default, this is fine. If 'desc' (oldest first), reverse.
+                    if (globalSortDirection === 'desc') {
+                        projectsToRender.reverse(); // Oldest first
+                    }
+                }
+
+
+                projectsToRender.forEach((project) => {
+                    // Find original index for data manipulation, as projectIndex from forEach will be for sorted array
+                    const originalProjectIndex = projects.findIndex(p => p.id === project.id);
+
+                    project.isCollapsed = project.isCollapsed === undefined ? false : project.isCollapsed;
+                    
                     const projectDiv = document.createElement('div');
                     projectDiv.classList.add('project-item', 'bg-slate-700/60', 'p-4', 'sm:p-5', 'rounded-xl', 'shadow-xl');
-                    projectDiv.dataset.projectId = project.id;
+                    projectDiv.dataset.projectId = project.id; // Use ID for robustness
+                    projectDiv.dataset.originalIndex = originalProjectIndex; // Store original index
                     const projectContentId = `project-content-${project.id}`;
 
                     projectDiv.innerHTML = `
                         <div class="project-header flex justify-between items-center mb-2">
                             <div class="flex items-center flex-grow min-w-0">
-                                <button class="collapse-project-btn collapse-btn p-2 rounded-md mr-1 sm:mr-2 ${project.isCollapsed ? 'collapsed' : ''}" data-project-index="${projectIndex}" aria-expanded="${!project.isCollapsed}" aria-controls="${projectContentId}">
+                                <button class="collapse-project-btn collapse-btn p-2 rounded-md mr-1 sm:mr-2 ${project.isCollapsed ? 'collapsed' : ''}" data-original-index="${originalProjectIndex}" aria-expanded="${!project.isCollapsed}" aria-controls="${projectContentId}">
                                     <i class="fas fa-chevron-down fa-sm"></i>
                                 </button>
-                                <h2 class="project-name-display text-xl sm:text-2xl font-semibold text-sky-300 hover:text-sky-200 cursor-pointer truncate" data-path="${projectIndex}" title="${project.name}">${project.name}</h2>
+                                <h2 class="project-name-display text-xl sm:text-2xl font-semibold text-sky-300 hover:text-sky-200 cursor-pointer truncate" data-path="${originalProjectIndex}" title="${project.name}">${project.name}</h2>
                             </div>
                             <div class="actions space-x-2 flex-shrink-0">
-                                <button class="delete-project-btn text-red-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-md" data-project-index="${projectIndex}" aria-label="Delete project">
+                                <button class="delete-project-btn text-red-400 hover:text-red-500 transition-colors duration-150 p-2 rounded-md" data-original-index="${originalProjectIndex}" aria-label="Delete project">
                                     <i class="fas fa-trash-alt fa-lg"></i>
                                 </button>
                             </div>
                         </div>
-                        <div class="project-description-display description-text mb-3 ml-8 sm:ml-10" data-path="${projectIndex}">${project.description || ''}</div>
+                        <div class="project-description-display description-text mb-3 ml-8 sm:ml-10" data-path="${originalProjectIndex}">${project.description || ''}</div>
                         
-                        <div class="sort-controls flex flex-wrap gap-2 items-center mb-3 ml-8 sm:ml-10 text-xs">
-                            <span>Sort by:</span>
-                            <select class="project-sort-by bg-slate-600 text-slate-200 p-1 rounded-md border border-slate-500" data-project-index="${projectIndex}">
-                                <option value="default" ${project.sortBy === 'default' ? 'selected' : ''}>Default</option>
-                                <option value="name" ${project.sortBy === 'name' ? 'selected' : ''}>Name</option>
-                                <option value="date" ${project.sortBy === 'date' ? 'selected' : ''}>Date</option>
-                                <option value="priority" ${project.sortBy === 'priority' ? 'selected' : ''}>Priority</option>
-                                <option value="remaining" ${project.sortBy === 'remaining' ? 'selected' : ''}>Remaining</option>
-                            </select>
-                            <button class="project-sort-direction-btn bg-slate-600 p-1 rounded-md border border-slate-500" data-project-index="${projectIndex}" aria-label="Toggle sort direction">
-                                <i class="fas ${project.sortDirection === 'asc' ? 'fa-arrow-up-a-z' : 'fa-arrow-down-z-a'}"></i>
-                            </button>
-                        </div>
-
                         <div id="${projectContentId}" class="project-content collapsible-content ${project.isCollapsed ? 'hidden' : ''} pl-1 sm:pl-2 md:pl-4">
                             <div class="add-task-section flex flex-col sm:flex-row gap-2 my-4 ml-6 sm:ml-8">
                                 <input type="text" class="new-task-name-input flex-grow p-2.5 bg-slate-600 border border-slate-500 rounded-lg placeholder-slate-400 focus:ring-1 focus:ring-sky-500 outline-none text-sm" placeholder="Add new task to project...">
-                                <button class="add-task-btn bg-emerald-500 hover:bg-emerald-600 text-white font-medium p-2.5 text-sm rounded-lg shadow-sm flex items-center justify-center" data-path="${projectIndex}">
+                                <button class="add-task-btn bg-emerald-500 hover:bg-emerald-600 text-white font-medium p-2.5 text-sm rounded-lg shadow-sm flex items-center justify-center" data-path="${originalProjectIndex}">
                                     <i class="fas fa-plus mr-1.5"></i> Add Task
                                 </button>
                             </div>
                             <ul class="tasks-list space-y-3 ml-6 sm:ml-8">
-                                ${renderTasks(project.tasks, `${projectIndex}.tasks`, project.sortBy, project.sortDirection)}
+                                ${renderTasks(project.tasks, `${originalProjectIndex}.tasks`)}
                             </ul>
                         </div>
                     `;
                     projectsListContainer.appendChild(projectDiv);
                 });
                 addEventListenersToElements();
+                updateGlobalSortUI();
             };
 
-            const renderTasks = (tasks, basePath, sortBy = 'default', sortDirection = 'asc') => {
+            const renderTasks = (tasks, basePath) => { // Removed sortBy and sortDirection from params
                 if (!tasks) return '';
                 
-                let sortedTasks = [...tasks]; // Create a copy to sort
-                if (sortBy !== 'default') {
-                    sortedTasks.sort((a, b) => {
-                        let comparison = 0;
-                        switch (sortBy) {
-                            case 'name':
-                                comparison = a.name.localeCompare(b.name);
-                                break;
-                            case 'date':
-                                const dateA = a.date ? new Date(a.date) : null;
-                                const dateB = b.date ? new Date(b.date) : null;
-                                if (dateA && dateB) comparison = dateA - dateB;
-                                else if (dateA) comparison = -1; // Dates first
-                                else if (dateB) comparison = 1;
-                                break;
-                            case 'priority':
-                                const priorities = { 'high': 0, 'medium': 1, 'low': 2, 'none': 3 };
-                                comparison = (priorities[a.priority] || 3) - (priorities[b.priority] || 3);
-                                break;
-                            case 'remaining':
-                                comparison = countIncompleteTasks(a) - countIncompleteTasks(b);
-                                break;
-                        }
-                        return sortDirection === 'asc' ? comparison : -comparison;
-                    });
-                }
-
-
-                return sortedTasks.map((task, taskIndexOriginal) => {
-                    // Find original index if sorting is applied, for data manipulation
-                    const taskIndex = tasks.indexOf(task);
-                    task.isCollapsed = task.isCollapsed === undefined ? true : task.isCollapsed; // Default collapsed for sub-tasks
+                // Tasks are now always rendered in their natural (creation) order within a project
+                return tasks.map((task, taskIndex) => {
+                    task.isCollapsed = task.isCollapsed === undefined ? true : task.isCollapsed;
                     const currentPath = `${basePath}.${taskIndex}`;
                     const taskContentId = `task-content-${task.id}`;
                     const hasSubTasks = task.tasks && task.tasks.length > 0;
@@ -266,7 +330,7 @@
                                 </button>
                             </div>
                             <ul class="tasks-list space-y-1.5 ml-6 sm:ml-8">
-                                ${renderTasks(task.tasks, `${currentPath}.tasks`, 'default', 'asc')} {/* Sub-tasks are not sorted by parent's criteria by default */}
+                                ${renderTasks(task.tasks, `${currentPath}.tasks`)}
                             </ul>
                         </div>
                     </li>
@@ -277,32 +341,34 @@
             // --- Data Manipulation & Access ---
             const getItemByPath = (path) => {
                 const parts = path.split('.');
-                let current = projects[parseInt(parts[0])];
-                for (let i = 1; i < parts.length; i += 2) { // tasks.index
-                    if (!current || !current[parts[i]]) return null;
-                    current = current[parts[i]][parseInt(parts[i+1])];
+                let currentItem = projects[parseInt(parts[0])]; // Start with project
+                // Traverse for tasks: parts[1] is "tasks", parts[2] is index, etc.
+                for (let i = 1; i < parts.length; i += 2) { 
+                    if (!currentItem || !currentItem[parts[i]]) return null; // tasks array doesn't exist
+                    currentItem = currentItem[parts[i]][parseInt(parts[i+1])];
                 }
-                return current;
+                return currentItem;
             };
 
             const getParentArrayAndIndex = (path) => {
                 const parts = path.split('.');
-                if (parts.length === 1) return { array: projects, index: parseInt(parts[0]) }; // Project level
+                if (parts.length === 1) return { array: projects, index: parseInt(parts[0]) }; 
                 
                 let parent = projects[parseInt(parts[0])];
                 for (let i = 1; i < parts.length - 2; i += 2) {
+                    if (!parent || !parent[parts[i]]) return {array: null, index: -1};
                     parent = parent[parts[i]][parseInt(parts[i+1])];
                 }
-                // The last part is the index in parent[parts[parts.length-2]]
+                if (!parent || !parent[parts[parts.length - 2]]) return {array: null, index: -1};
                 return { array: parent[parts[parts.length-2]], index: parseInt(parts[parts.length-1]) };
             };
             
-            const countIncompleteTasks = (taskOrProject) => {
+            const countIncompleteTasks = (itemWithTasks) => { // Renamed for clarity
                 let count = 0;
-                if (taskOrProject.tasks && taskOrProject.tasks.length > 0) {
-                    taskOrProject.tasks.forEach(subTask => {
+                if (itemWithTasks.tasks && itemWithTasks.tasks.length > 0) {
+                    itemWithTasks.tasks.forEach(subTask => {
                         if (!subTask.completed) count++;
-                        count += countIncompleteTasks(subTask); // Recursive count
+                        count += countIncompleteTasks(subTask); 
                     });
                 }
                 return count;
@@ -312,7 +378,7 @@
             const handleAddProject = () => {
                 const projectName = newProjectNameInput.value.trim();
                 if (projectName) {
-                    projects.unshift({ id: generateId(), name: projectName, description: '', tasks: [], isCollapsed: false, sortBy: 'default', sortDirection: 'asc' });
+                    projects.unshift({ id: generateId(), name: projectName, description: '', tasks: [], isCollapsed: false }); // Removed sortBy, sortDirection from project
                     newProjectNameInput.value = '';
                     saveAndRender();
                 } else { showMessage('Project name cannot be empty.', 'error'); }
@@ -326,7 +392,7 @@
                 if (parentItem) {
                     if (!parentItem.tasks) parentItem.tasks = [];
                     parentItem.tasks.push({ id: generateId(), name: taskName, description: '', completed: false, date: null, priority: 'none', tasks: [], isCollapsed: true });
-                    parentItem.isCollapsed = false; // Expand parent when adding a task
+                    parentItem.isCollapsed = false; 
                     inputElement.value = '';
                     saveAndRender();
                 }
@@ -337,9 +403,23 @@
                 if (item) { item.completed = !item.completed; saveAndRender(); }
             };
 
-            const handleDeleteItem = (path) => {
-                const { array, index } = getParentArrayAndIndex(path);
-                const item = array[index];
+            const handleDeleteItem = (pathOrOriginalIndex) => { // Can be project index string or full path
+                let array, index, item;
+                if (pathOrOriginalIndex.toString().includes('.')) { // It's a task path
+                    const result = getParentArrayAndIndex(pathOrOriginalIndex);
+                    array = result.array;
+                    index = result.index;
+                } else { // It's a project's original index
+                    array = projects;
+                    index = parseInt(pathOrOriginalIndex);
+                }
+
+                if (!array || index === -1 || index >= array.length) {
+                    console.error("Invalid path or index for deletion:", pathOrOriginalIndex);
+                    showMessage("Error: Could not delete item.", "error");
+                    return;
+                }
+                item = array[index];
                 if (item && confirm(`Delete "${item.name}"? ${item.tasks && item.tasks.length > 0 ? 'This will delete all sub-tasks.' : ''}`)) {
                     array.splice(index, 1);
                     saveAndRender();
@@ -347,8 +427,15 @@
             };
             
             const makeEditable = (displayElement, path, property) => {
+                const existingEditor = document.querySelector('.editable-input, .editable-textarea, .editable-date, .editable-priority');
+                if (existingEditor && existingEditor.parentNode !== displayElement) {
+                    existingEditor.focus(); 
+                    return; 
+                }
+                if (displayElement.querySelector('input, textarea, select')) return;
+
                 const item = getItemByPath(path);
-                if (!item || displayElement.querySelector('input, textarea, select')) return;
+                if (!item) return;
 
                 const originalValue = item[property] || '';
                 let inputElement;
@@ -369,67 +456,93 @@
                         if (p === originalValue) option.selected = true;
                         inputElement.appendChild(option);
                     });
-                } else { // name
+                } else { 
                     inputElement = document.createElement('input');
                     inputElement.type = 'text';
                     inputElement.classList.add('editable-input');
                 }
                 inputElement.value = originalValue;
                 
-                const originalDisplay = displayElement.innerHTML; // Save original display for revert
-                displayElement.innerHTML = ''; // Clear display element
+                displayElement.innerHTML = ''; 
                 displayElement.appendChild(inputElement);
                 inputElement.focus();
-                if (inputElement.select) inputElement.select();
+                if (inputElement.select && typeof inputElement.select === 'function') inputElement.select();
 
                 const saveChanges = () => {
+                    const currentItem = getItemByPath(path); 
+                    if (!currentItem) {
+                        renderProjects(); 
+                        return;
+                    }
                     const newValue = inputElement.value.trim();
                     if (property.includes('name') && !newValue) {
                         showMessage('Name cannot be empty. Reverted.', 'error');
-                        // No need to set item[property] = originalValue, saveAndRender will use existing data
                     } else {
-                        item[property] = (property === 'date' && !newValue) ? null : newValue; // Allow clearing date
+                        currentItem[property] = (property === 'date' && !newValue) ? null : newValue; 
                     }
-                    saveAndRender(); // This will redraw, removing the input
+                    saveAndRender(); 
                 };
                 
-                inputElement.addEventListener('blur', () => setTimeout(saveChanges, 100)); // Timeout to allow other events
+                const blurHandler = () => setTimeout(saveChanges, 50); 
+                inputElement.addEventListener('blur', blurHandler);
                 inputElement.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' && (inputElement.type !== 'textarea' || e.ctrlKey)) { e.preventDefault(); inputElement.blur(); } 
-                    else if (e.key === 'Escape') { 
-                        displayElement.innerHTML = originalDisplay; // Revert display immediately
-                        inputElement.remove(); // Clean up input
-                        // No saveAndRender needed if we just revert display
+                    if (e.key === 'Enter' && (inputElement.type !== 'textarea' || e.ctrlKey)) { 
+                        e.preventDefault(); 
+                        inputElement.removeEventListener('blur', blurHandler);
+                        inputElement.blur(); 
+                        saveChanges(); 
+                    } else if (e.key === 'Escape') { 
+                        inputElement.removeEventListener('blur', blurHandler);
+                        // Restore original display without full re-render for escape
+                        if (property === 'description') {
+                            displayElement.textContent = originalValue;
+                            if (!originalValue) displayElement.classList.add('description-text:empty::before'); // Re-apply pseudo-element content
+                        } else if (property === 'name') {
+                            displayElement.textContent = originalValue;
+                            if (displayElement.title) displayElement.title = originalValue;
+                        } else if (property === 'priority') {
+                            displayElement.textContent = `P: ${originalValue.charAt(0).toUpperCase() + originalValue.slice(1) || 'None'}`;
+                        } else if (property === 'date') {
+                            displayElement.textContent = `D: ${originalValue ? new Date(originalValue).toISOString().split('T')[0] : 'Set Date'}`;
+                        } else {
+                            displayElement.textContent = originalValue;
+                        }
+                         if (inputElement.parentNode === displayElement) { // Ensure it's still there before removing
+                            displayElement.removeChild(inputElement);
+                         }
                     }
                 });
             };
 
-            const handleToggleCollapse = (path) => {
-                const item = getItemByPath(path);
+            const handleToggleCollapse = (pathOrOriginalIndex) => { // Can be project original index or full task path
+                let item;
+                if (pathOrOriginalIndex.toString().includes('.')) { // Task path
+                    item = getItemByPath(pathOrOriginalIndex);
+                } else { // Project original index
+                    item = projects[parseInt(pathOrOriginalIndex)];
+                }
                 if (item) { item.isCollapsed = !item.isCollapsed; saveAndRender(); }
             };
 
-            const handleChangeSort = (projectIndex, sortBy) => {
-                projects[projectIndex].sortBy = sortBy;
-                saveAndRender();
-            };
-
-            const handleToggleSortDirection = (projectIndex) => {
-                projects[projectIndex].sortDirection = projects[projectIndex].sortDirection === 'asc' ? 'desc' : 'asc';
-                saveAndRender();
+            const updateGlobalSortUI = () => {
+                globalSortBySelect.value = globalSortBy;
+                const icon = globalSortDirectionBtn.querySelector('i');
+                if (globalSortDirection === 'asc') {
+                    icon.className = 'fas fa-arrow-up-a-z'; // Or more generic up arrow
+                } else {
+                    icon.className = 'fas fa-arrow-down-z-a'; // Or more generic down arrow
+                }
             };
 
             // --- Event Listener Setup ---
             function addEventListenersToElements() {
-                // Projects
+                // Projects (using originalIndex for direct array access on projects)
                 document.querySelectorAll('.project-name-display').forEach(el => el.onclick = e => makeEditable(e.currentTarget, e.currentTarget.dataset.path, 'name'));
                 document.querySelectorAll('.project-description-display').forEach(el => el.onclick = e => makeEditable(e.currentTarget, e.currentTarget.dataset.path, 'description'));
-                document.querySelectorAll('.delete-project-btn').forEach(btn => btn.onclick = e => handleDeleteItem(e.currentTarget.dataset.projectIndex.toString()));
-                document.querySelectorAll('.collapse-project-btn').forEach(btn => btn.onclick = e => handleToggleCollapse(e.currentTarget.dataset.projectIndex.toString()));
-                document.querySelectorAll('.project-sort-by').forEach(sel => sel.onchange = e => handleChangeSort(parseInt(e.currentTarget.dataset.projectIndex), e.currentTarget.value));
-                document.querySelectorAll('.project-sort-direction-btn').forEach(btn => btn.onclick = e => handleToggleSortDirection(parseInt(e.currentTarget.dataset.projectIndex)));
+                document.querySelectorAll('.delete-project-btn').forEach(btn => btn.onclick = e => handleDeleteItem(e.currentTarget.dataset.originalIndex));
+                document.querySelectorAll('.collapse-project-btn').forEach(btn => btn.onclick = e => handleToggleCollapse(e.currentTarget.dataset.originalIndex));
 
-                // Tasks (generic for all levels)
+                // Tasks (generic for all levels, using full path)
                 document.querySelectorAll('.add-task-btn').forEach(btn => {
                     const input = btn.previousElementSibling;
                     btn.onclick = () => handleAddTask(btn.dataset.path, input);
@@ -451,11 +564,24 @@
                 });
             }
             
+            const saveAndRender = () => {
+                saveProjects(); // This now also saves global sort settings
+                renderProjects();
+            };
+            
             // --- Initial Setup ---
             addProjectBtn.addEventListener('click', handleAddProject);
             newProjectNameInput.addEventListener('keypress', e => { if (e.key === 'Enter') handleAddProject(); });
+
+            globalSortBySelect.addEventListener('change', (e) => {
+                globalSortBy = e.target.value;
+                saveAndRender();
+            });
+            globalSortDirectionBtn.addEventListener('click', () => {
+                globalSortDirection = globalSortDirection === 'asc' ? 'desc' : 'asc';
+                saveAndRender();
+            });
             
-            // Initial render
             renderProjects(); 
         });
     </script>
