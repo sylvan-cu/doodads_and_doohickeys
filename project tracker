@@ -1,0 +1,175 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f4;
+    color: #333;
+    line-height: 1.6;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.input-section {
+    display: flex;
+    margin-bottom: 20px;
+}
+
+.input-section input[type="text"] {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 16px;
+}
+
+.input-section button {
+    padding: 10px 15px;
+    background-color: #5cb85c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.input-section button:hover {
+    background-color: #4cae4c;
+}
+
+.project {
+    background: #f9f9f9;
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.project-header h2 {
+    margin: 0;
+    font-size: 1.5em;
+    flex-grow: 1;
+}
+
+.project-header .actions button {
+    margin-left: 5px;
+    padding: 5px 8px;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.delete-project-btn {
+    background-color: #d9534f;
+    color: white;
+    border: none;
+    border-radius: 3px;
+}
+
+.delete-project-btn:hover {
+    background-color: #c9302c;
+}
+
+.component-input-section {
+    display: flex;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.component-input-section input[type="text"] {
+    flex-grow: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.component-input-section button {
+    padding: 8px 12px;
+    background-color: #337ab7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    margin-left: 8px;
+    cursor: pointer;
+}
+
+.component-input-section button:hover {
+    background-color: #286090;
+}
+
+.component-list {
+    list-style: none;
+    padding: 0;
+}
+
+.component-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.component-item:last-child {
+    border-bottom: none;
+}
+
+.component-item input[type="checkbox"] {
+    margin-right: 10px;
+    width: 18px;
+    height: 18px;
+}
+
+.component-item .component-name {
+    flex-grow: 1;
+    cursor: pointer;
+}
+
+.component-item .component-name.completed {
+    text-decoration: line-through;
+    color: #888;
+}
+
+.component-item .component-actions button {
+    margin-left: 5px;
+    padding: 3px 6px;
+    font-size: 0.8em;
+    cursor: pointer;
+    background-color: #f0ad4e;
+    color: white;
+    border: none;
+    border-radius: 3px;
+}
+
+.component-item .component-actions button.delete-component-btn {
+    background-color: #d9534f;
+}
+
+.component-item .component-actions button:hover {
+    opacity: 0.8;
+}
+
+.editable {
+    border: 1px dashed #ccc;
+    padding: 2px 5px;
+    background-color: #fff;
+}
